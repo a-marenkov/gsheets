@@ -22,7 +22,8 @@ class GSheets {
   /// [credentials] must be provided.
   ///
   /// [scopes] defaults to SheetsApi.SpreadsheetsScope.
-  GSheets(ServiceAccountCredentials credentials, {
+  GSheets(
+    ServiceAccountCredentials credentials, {
     List<String> scopes = const [v4.SheetsApi.SpreadsheetsScope],
   })  : _credentials = credentials,
         _scopes = scopes;
@@ -81,12 +82,11 @@ class Spreadsheet {
     final response = await _client.get('$_sheetsEndpoint$id');
     if (response.statusCode == 200) {
       final sheets = (jsonDecode(response.body)['sheets'] as List)
-          .map((sheetJson) =>
-          Worksheet._fromSheetJson(
-            sheetJson,
-            _client,
-            id,
-          ))
+          .map((sheetJson) => Worksheet._fromSheetJson(
+                sheetJson,
+                _client,
+                id,
+              ))
           .toList();
       this.sheets.clear();
       this.sheets.addAll(sheets);
@@ -135,7 +135,8 @@ class Spreadsheet {
   ///
   /// Throws [GSheetsException] if sheet with [title] already exists, or
   /// if [rows] or [columns] value is invalid.
-  Future<Worksheet> addWorksheet(String title, {
+  Future<Worksheet> addWorksheet(
+    String title, {
     int rows = 1000,
     int columns = 26,
   }) async {
@@ -175,9 +176,9 @@ class Spreadsheet {
   /// Throws [GSheetsException] if sheet with [title] already exists.
   Future<Worksheet> copyWorksheet(
     Worksheet ws,
-      String title, {
+    String title, {
     int index,
-      }) async {
+  }) async {
     final response = await GSheets._batchUpdate(_client, id, [
       {
         'duplicateSheet': {
@@ -221,7 +222,7 @@ class Spreadsheet {
 
   /// Returns Future list of [Permission].
   ///
-  /// Requires [SheetsApi.DriveScope]
+  /// Requires SheetsApi.DriveScope
   ///
   /// Throws Exception if auth does not include DriveScope
   /// Throws GSheetsException if DriveScope is not configured
@@ -440,7 +441,7 @@ class Worksheet {
     this.spreadsheetId,
     this.id,
     this._title,
-      this._index, [
+    this._index, [
     this._rowCount,
     this._columnCount,
   ]);
@@ -537,10 +538,12 @@ class Worksheet {
     return _deleteDimension(DIMEN_ROWS, row, length);
   }
 
-  Future<bool> _insertDimension(String dimen,
-      int index,
-      int length,
-      bool inheritFromBefore,) async {
+  Future<bool> _insertDimension(
+    String dimen,
+    int index,
+    int length,
+    bool inheritFromBefore,
+  ) async {
     checkL(length);
     final response = await GSheets._batchUpdate(_client, spreadsheetId, [
       {
@@ -575,7 +578,8 @@ class Worksheet {
   /// Returns Future `true` in case of success.
   ///
   /// Throws [GSheetsException] if something goes wrong.
-  Future<bool> insertColumn(int column, {
+  Future<bool> insertColumn(
+    int column, {
     int length = 1,
     bool inheritFromBefore = false,
   }) async {
@@ -599,7 +603,8 @@ class Worksheet {
   /// Returns Future `true` in case of success.
   ///
   /// Throws [GSheetsException] if something goes wrong.
-  Future<bool> insertRow(int row, {
+  Future<bool> insertRow(
+    int row, {
     int length = 1,
     bool inheritFromBefore = false,
   }) async {
@@ -607,10 +612,12 @@ class Worksheet {
     return _insertDimension(DIMEN_ROWS, row, length, inheritFromBefore);
   }
 
-  Future<bool> _moveDimension(String dimen,
-      int from,
-      int to,
-      int length,) async {
+  Future<bool> _moveDimension(
+    String dimen,
+    int from,
+    int to,
+    int length,
+  ) async {
     except(from == to, 'cannot move from $from to $to');
     except(from < 1, 'invalid from ($from)');
     except(to < 1, 'invalid to ($to)');
@@ -811,7 +818,7 @@ class Worksheet {
   /// Returns Future `true` in case of success.
   Future<bool> clearColumn(
     int column, {
-        int fromRow = 1,
+    int fromRow = 1,
     int length = -1,
   }) async {
     checkCR(column, fromRow);
@@ -832,7 +839,7 @@ class Worksheet {
   /// Returns Future `true` in case of success.
   Future<bool> clearRow(
     int row, {
-        int fromColumn = 1,
+    int fromColumn = 1,
     int length = -1,
   }) async {
     checkCR(fromColumn, row);
@@ -868,7 +875,7 @@ class WorksheetAsValues {
   /// Returns column as Future [List] of [String].
   Future<List<String>> column(
     int column, {
-        int fromRow = 1,
+    int fromRow = 1,
     int length = -1,
   }) async {
     checkCR(column, fromRow);
@@ -891,7 +898,7 @@ class WorksheetAsValues {
   /// Returns row as Future [List] of [String].
   Future<List<String>> row(
     int row, {
-        int fromColumn = 1,
+    int fromColumn = 1,
     int length = -1,
   }) async {
     checkCR(fromColumn, row);
@@ -914,7 +921,7 @@ class WorksheetAsValues {
   /// Returns column as Future [List] of [String].
   Future<List<String>> columnByKey(
     String key, {
-        int fromRow = 2,
+    int fromRow = 2,
     int length = -1,
   }) async {
     final column = await columnIndexOf(key, add: false);
@@ -937,7 +944,7 @@ class WorksheetAsValues {
   /// Returns row as Future [List] of [String].
   Future<List<String>> rowByKey(
     String key, {
-        int fromColumn = 2,
+    int fromColumn = 2,
     int length = -1,
   }) async {
     final row = await rowIndexOf(key, add: false);
@@ -1079,7 +1086,8 @@ class WorksheetAsValues {
   /// columns start at index 1 (column A)
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> insertValue(String value, {
+  Future<bool> insertValue(
+    String value, {
     @required int column,
     @required int row,
   }) async {
@@ -1100,7 +1108,8 @@ class WorksheetAsValues {
   /// The column A considered to be row names
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> insertValueByKeys(String value, {
+  Future<bool> insertValueByKeys(
+    String value, {
     @required String columnKey,
     @required String rowKey,
   }) async {
@@ -1120,7 +1129,8 @@ class WorksheetAsValues {
   /// to [inRow] in case of absence
   ///
   /// Returns Future `-1` if not found and [add] is false.
-  Future<int> columnIndexOf(String key, {
+  Future<int> columnIndexOf(
+    String key, {
     bool add = true,
     int inRow = 1,
   }) async {
@@ -1154,7 +1164,8 @@ class WorksheetAsValues {
   /// to [inColumn] in case of absence
   ///
   /// Returns Future `-1` if [key] is not found and [add] is false.
-  Future<int> rowIndexOf(String key, {
+  Future<int> rowIndexOf(
+    String key, {
     bool add = false,
     inColumn = 1,
   }) async {
@@ -1188,9 +1199,10 @@ class WorksheetAsValues {
   /// rows start at index 1
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> insertColumn(int column,
-      List<String> values, {
-        int fromRow = 1,
+  Future<bool> insertColumn(
+    int column,
+    List<String> values, {
+    int fromRow = 1,
   }) async {
     checkCR(column, fromRow);
     checkV(values);
@@ -1213,9 +1225,10 @@ class WorksheetAsValues {
   /// rows start at index 1
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> insertColumnByKey(String key,
-      List<String> values, {
-        int fromRow = 2,
+  Future<bool> insertColumnByKey(
+    String key,
+    List<String> values, {
+    int fromRow = 2,
   }) async {
     final column = await columnIndexOf(key, add: true);
     return insertColumn(column, values, fromRow: fromRow);
@@ -1233,7 +1246,8 @@ class WorksheetAsValues {
   /// rows start at index 1
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> appendColumn(List<String> values, {
+  Future<bool> appendColumn(
+    List<String> values, {
     int fromRow = 1,
   }) async {
     final column = (await this.row(1)).length + 1;
@@ -1252,9 +1266,10 @@ class WorksheetAsValues {
   /// columns start at index 1 (column A)
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> insertRow(int row,
-      List<String> values, {
-        int fromColumn = 1,
+  Future<bool> insertRow(
+    int row,
+    List<String> values, {
+    int fromColumn = 1,
   }) async {
     checkCR(fromColumn, row);
     checkV(values);
@@ -1277,9 +1292,10 @@ class WorksheetAsValues {
   /// columns start at index 1 (column A)
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> insertRowByKey(String key,
-      List<String> values, {
-        int fromColumn = 2,
+  Future<bool> insertRowByKey(
+    String key,
+    List<String> values, {
+    int fromColumn = 2,
   }) async {
     int row = await rowIndexOf(key, add: true);
     return insertRow(row, values, fromColumn: fromColumn);
@@ -1297,7 +1313,8 @@ class WorksheetAsValues {
   /// columns start at index 1 (column A)
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> appendRow(List<String> values, {
+  Future<bool> appendRow(
+    List<String> values, {
     int fromColumn = 1,
   }) async {
     final row = (await this.column(1)).length + 1;
@@ -1329,13 +1346,13 @@ class ValueMapper {
   /// Returns column as Future [Map] of [String] to [String].
   Future<Map<String, String>> column(
     int column, {
-        int fromRow = 1,
+    int fromRow = 1,
     int length = -1,
     int mapTo = 1,
   }) async {
     checkM(column, mapTo);
     final values =
-    await _values.column(column, fromRow: fromRow, length: length);
+        await _values.column(column, fromRow: fromRow, length: length);
     final keys = await _values.column(mapTo, fromRow: fromRow, length: length);
     final map = <String, String>{};
     mapKeysToValues(keys, values, map, '', null);
@@ -1361,15 +1378,15 @@ class ValueMapper {
   /// Returns row as Future [Map] of [String] to [String].
   Future<Map<String, String>> row(
     int row, {
-        int fromColumn = 1,
+    int fromColumn = 1,
     int length = -1,
     int mapTo = 1,
   }) async {
     checkM(row, mapTo);
     final values =
-    await _values.row(row, fromColumn: fromColumn, length: length);
+        await _values.row(row, fromColumn: fromColumn, length: length);
     final keys =
-    await _values.row(mapTo, fromColumn: fromColumn, length: length);
+        await _values.row(mapTo, fromColumn: fromColumn, length: length);
     final map = <String, String>{};
     mapKeysToValues(keys, values, map, '', null);
     return map;
@@ -1395,7 +1412,7 @@ class ValueMapper {
   /// Returns column as Future [Map] of [String] to [String].
   Future<Map<String, String>> columnByKey(
     String key, {
-        int fromRow = 2,
+    int fromRow = 2,
     int length = -1,
     String mapTo,
   }) async {
@@ -1431,7 +1448,7 @@ class ValueMapper {
   /// Returns row as Future [Map] of [String] to [String].
   Future<Map<String, String>> rowByKey(
     String key, {
-        int fromColumn = 2,
+    int fromColumn = 2,
     int length = -1,
     String mapTo,
   }) async {
@@ -1517,9 +1534,10 @@ class ValueMapper {
   /// [column] if [map] does not contain value for them
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> insertColumn(int column,
-      Map<String, String> map, {
-        int fromRow = 1,
+  Future<bool> insertColumn(
+    int column,
+    Map<String, String> map, {
+    int fromRow = 1,
     int mapTo = 1,
     bool appendMissing = false,
     bool overwrite = false,
@@ -1579,9 +1597,10 @@ class ValueMapper {
   /// [key] column if [map] does not contain value for them
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> insertColumnByKey(String key,
-      Map<String, String> map, {
-        int fromRow = 2,
+  Future<bool> insertColumnByKey(
+    String key,
+    Map<String, String> map, {
+    int fromRow = 2,
     String mapTo,
     bool appendMissing = false,
     bool overwrite = false,
@@ -1617,7 +1636,8 @@ class ValueMapper {
   /// should be added
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> appendColumn(Map<String, String> map, {
+  Future<bool> appendColumn(
+    Map<String, String> map, {
     int fromRow = 1,
     int mapTo = 1,
     bool appendMissing = false,
@@ -1657,9 +1677,10 @@ class ValueMapper {
   /// [row] if [map] does not contain value for them
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> insertRow(int row,
-      Map<String, String> map, {
-        int fromColumn = 1,
+  Future<bool> insertRow(
+    int row,
+    Map<String, String> map, {
+    int fromColumn = 1,
     int mapTo = 1,
     bool appendMissing = false,
     bool overwrite = false,
@@ -1719,9 +1740,10 @@ class ValueMapper {
   /// contain value for them
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> insertRowByKey(String key,
-      Map<String, String> map, {
-        int fromColumn = 2,
+  Future<bool> insertRowByKey(
+    String key,
+    Map<String, String> map, {
+    int fromColumn = 2,
     String mapTo,
     bool appendMissing = false,
     bool overwrite = false,
@@ -1757,7 +1779,8 @@ class ValueMapper {
   /// should be added
   ///
   /// Returns Future `true` in case of success.
-  Future<bool> appendRow(Map<String, String> map, {
+  Future<bool> appendRow(
+    Map<String, String> map, {
     int fromColumn = 1,
     int mapTo = 1,
     bool appendMissing = false,
@@ -1857,7 +1880,7 @@ class WorksheetAsCells {
   /// Returns column as Future [List] of [Cell].
   Future<List<Cell>> column(
     int column, {
-        int fromRow = 1,
+    int fromRow = 1,
     int length = -1,
   }) async {
     int index = fromRow;
@@ -1888,7 +1911,7 @@ class WorksheetAsCells {
   /// Returns row as Future [List] of [Cell].
   Future<List<Cell>> row(
     int row, {
-        int fromColumn = 1,
+    int fromColumn = 1,
     int length = -1,
   }) async {
     int index = fromColumn;
@@ -1919,7 +1942,7 @@ class WorksheetAsCells {
   /// Returns column as Future [List] of [Cell].
   Future<List<Cell>> columnByKey(
     String key, {
-        int fromRow = 2,
+    int fromRow = 2,
     int length = -1,
   }) async {
     final column = await _ws.values.columnIndexOf(key, add: false);
@@ -1942,7 +1965,7 @@ class WorksheetAsCells {
   /// Returns row as Future [List] of [Cell].
   Future<List<Cell>> rowByKey(
     String key, {
-        int fromColumn = 2,
+    int fromColumn = 2,
     int length = -1,
   }) async {
     final row = await _ws.values.rowIndexOf(key, add: false);
@@ -2008,7 +2031,7 @@ class WorksheetAsCells {
     final list = <List<Cell>>[];
     int colIndex = fromColumn;
     (await _ws.values.allColumns(
-        fromColumn: fromColumn, fromRow: fromRow, length: length))
+            fromColumn: fromColumn, fromRow: fromRow, length: length))
         .forEach((sublist) {
       int rowIndex = fromRow;
       list.add(List.unmodifiable(sublist.map((value) {
@@ -2046,7 +2069,7 @@ class WorksheetAsCells {
     final list = <List<Cell>>[];
     int rowIndex = fromRow;
     (await _ws.values
-        .allRows(fromRow: fromRow, fromColumn: fromColumn, length: length))
+            .allRows(fromRow: fromRow, fromColumn: fromColumn, length: length))
         .forEach((sublist) {
       int colIndex = fromColumn;
       list.add(List.unmodifiable(sublist.map((value) {
@@ -2173,18 +2196,18 @@ class CellsMapper {
   /// Returns column as Future [Map] of [String] to [Cell].
   Future<Map<String, Cell>> column(
     int column, {
-        int fromRow = 1,
+    int fromRow = 1,
     int mapTo = 1,
     int length = -1,
   }) async {
     checkM(column, mapTo);
     final values =
-    await _cells.column(column, fromRow: fromRow, length: length);
+        await _cells.column(column, fromRow: fromRow, length: length);
     final keys =
-    await _cells._ws.values.column(mapTo, fromRow: fromRow, length: length);
+        await _cells._ws.values.column(mapTo, fromRow: fromRow, length: length);
     final map = <String, Cell>{};
     mapKeysToValues(keys, values, map, null,
-            (index) => Cell._(_cells._ws, fromRow + index, column, ''));
+        (index) => Cell._(_cells._ws, fromRow + index, column, ''));
     return Map.unmodifiable(map);
   }
 
@@ -2207,18 +2230,18 @@ class CellsMapper {
   /// Returns row as Future [Map] of [String] to [Cell].
   Future<Map<String, Cell>> row(
     int row, {
-        int fromColumn = 1,
+    int fromColumn = 1,
     int mapTo = 1,
     int length = -1,
   }) async {
     checkM(row, mapTo);
     final values =
-    await _cells.row(row, fromColumn: fromColumn, length: length);
+        await _cells.row(row, fromColumn: fromColumn, length: length);
     final keys = await _cells._ws.values
         .row(mapTo, fromColumn: fromColumn, length: length);
     final map = <String, Cell>{};
     mapKeysToValues(keys, values, map, null,
-            (index) => Cell._(_cells._ws, row, fromColumn + index, ''));
+        (index) => Cell._(_cells._ws, row, fromColumn + index, ''));
     return Map.unmodifiable(map);
   }
 
@@ -2242,7 +2265,7 @@ class CellsMapper {
   /// Returns column as Future [Map] of [String] to [Cell].
   Future<Map<String, Cell>> columnByKey(
     String key, {
-        int fromRow = 2,
+    int fromRow = 2,
     String mapTo,
     int length = -1,
   }) async {
@@ -2276,7 +2299,7 @@ class CellsMapper {
   /// Returns row as Future [Map] of [String] to [Cell].
   Future<Map<String, Cell>> rowByKey(
     String key, {
-        int fromColumn = 2,
+    int fromColumn = 2,
     String mapTo,
     int length = -1,
   }) async {

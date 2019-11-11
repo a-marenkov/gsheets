@@ -1,7 +1,6 @@
-A library for Dart developers.
+A library for working with Google Sheets API v4.
 
-Created from templates made available by Stagehand under a BSD-style
-[license](https://github.com/dart-lang/stagehand/blob/master/LICENSE).
+Manage your spreadsheets with gsheets in Dart.
 
 ## Usage
 
