@@ -1,3 +1,9 @@
+## 0.0.1-dev.4
+
+- Refactoring with breaking changes - simplified GSheets initialization;
+- Increased performance;
+- Minor fixes;
+
 ## 0.0.1-dev.3
 
 - Documentation fixes.
