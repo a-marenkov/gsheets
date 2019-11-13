@@ -1,6 +1,9 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:http/http.dart';
+
+import 'gsheets.dart';
 
 const DIMEN_ROWS = 'ROWS';
 const DIMEN_COLUMNS = 'COLUMNS';
@@ -19,14 +22,6 @@ String getColumnLetter(int index) {
     number = number ~/ 26;
   }
   return label;
-}
-
-class GSheetsException implements Exception {
-  String cause;
-
-  GSheetsException(this.cause);
-
-  String toString() => 'GSheetsException: $cause';
 }
 
 checkCR(int column, int row) {
@@ -89,6 +84,14 @@ mapKeysToValues<V>(
       index++;
     }
   }
+}
+
+int maxLength(List<List<Object>> data) {
+  int len = 0;
+  data.forEach((list) {
+    len = max(len, list.length);
+  });
+  return len;
 }
 
 class Tuple<A, B> {

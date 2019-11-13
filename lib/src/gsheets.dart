@@ -11,41 +11,78 @@ import 'utils.dart';
 const _sheetsEndpoint = 'https://sheets.googleapis.com/v4/spreadsheets/';
 const _filesEndpoint = 'https://www.googleapis.com/drive/v2/files/';
 
+/// [Exception] that throws gsheets.
+///
+/// [cause] - exception message
+///
+/// GSheetsException is thrown:
+/// - in case of invalid arguments;
+/// - in case of google api returning error.
+class GSheetsException implements Exception {
+  String cause;
+
+  GSheetsException(this.cause);
+
+  String toString() => 'GSheetsException: $cause';
+}
+
 /// Manages googleapis auth and [Spreadsheet] fetching.
 class GSheets {
-  AutoRefreshingAuthClient _client;
+  Future<AutoRefreshingAuthClient> _client;
   final ServiceAccountCredentials _credentials;
   final List<String> _scopes;
 
   /// Creates a new [GSheets].
   ///
-  /// [credentials] must be provided.
+  /// [credentialsJson] - must be provided, it can be either a [Map] or a
+  /// JSON map encoded as a [String].
   ///
-  /// [scopes] defaults to SheetsApi.SpreadsheetsScope.
+  /// [impersonatedUser] - optional, used to set the user to impersonate
+  /// if impersonating a user.
+  ///
+  /// [scopes] - optional (defaults to `[SpreadsheetsScope, DriveScope]`).
+  ///
+  /// Creates a new [ServiceAccountCredentials] from JSON.
   GSheets(
-    ServiceAccountCredentials credentials, {
-    List<String> scopes = const [v4.SheetsApi.SpreadsheetsScope],
-  })  : _credentials = credentials,
-        _scopes = scopes;
+    credentialsJson, {
+    String impersonatedUser,
+    List<String> scopes = const [
+      v4.SheetsApi.SpreadsheetsScope,
+      v4.SheetsApi.DriveScope,
+    ],
+  })  : _credentials = ServiceAccountCredentials.fromJson(
+          credentialsJson,
+          impersonatedUser: impersonatedUser,
+        ),
+        _scopes = scopes {
+    client; // initializes client
+  }
 
   /// Returns Future [AutoRefreshingAuthClient].
-  Future<AutoRefreshingAuthClient> get client async {
+  Future<AutoRefreshingAuthClient> get client {
     if (_client == null) {
-      _client = await clientViaServiceAccount(_credentials, _scopes);
+      _client = clientViaServiceAccount(_credentials, _scopes);
     }
     return _client;
   }
 
   /// Fetches and returns Future [Spreadsheet].
+  ///
+  /// Requires SheetsApi.SpreadsheetsScope.
+  ///
+  /// Throws Exception if auth does not include SpreadsheetsScope.
+  /// Throws GSheetsException if does not have permission.
   Future<Spreadsheet> spreadsheet(String spreadsheetId) async {
     final client = await this.client;
     final response = await client.get('$_sheetsEndpoint$spreadsheetId');
-
+    checkResponse(response);
     final sheets = (jsonDecode(response.body)['sheets'] as List)
-        .map((sheetJson) =>
-            Worksheet._fromSheetJson(sheetJson, client, spreadsheetId))
+        .map((sheetJson) => Worksheet._fromSheetJson(
+              sheetJson,
+              client,
+              spreadsheetId,
+            ))
         .toList();
-
     return Spreadsheet._(
       client,
       spreadsheetId,
@@ -57,11 +94,14 @@ class GSheets {
     AutoRefreshingAuthClient client,
     String spreadsheetId,
     List<Map<String, dynamic>> requests,
-  ) =>
-      client.post(
-        '$_sheetsEndpoint$spreadsheetId:batchUpdate',
-        body: jsonEncode({'requests': requests}),
-      );
+  ) async {
+    final response = await client.post(
+      '$_sheetsEndpoint$spreadsheetId:batchUpdate',
+      body: jsonEncode({'requests': requests}),
+    );
+    checkResponse(response);
+    return response;
+  }
 }
 
 /// Representation of a [Spreadsheet], manages [Worksheet]s.
@@ -127,9 +167,9 @@ class Spreadsheet {
 
   /// Adds new [Worksheet] with specified [title], [rows] and [columns].
   ///
-  /// [title] - title of a new [Worksheet]
-  /// [rows] - optional (defaults to 1000), row count of a new [Worksheet]
-  /// [columns] - optional (defaults to 26), column count of a new [Worksheet]
+  /// [title] - title of a new [Worksheet].
+  /// [rows] - optional (defaults to 1000), row count of a new [Worksheet].
+  /// [columns] - optional (defaults to 26), column count of a new [Worksheet].
   ///
   /// Returns Future of created [Worksheet].
   ///
@@ -155,7 +195,6 @@ class Spreadsheet {
         }
       }
     ]);
-    checkResponse(response);
     final addSheetJson = (jsonDecode(response.body)['replies'] as List)?.first;
     if (addSheetJson != null) {
       final ws = Worksheet._fromSheetJson(
@@ -173,12 +212,14 @@ class Spreadsheet {
   ///
   /// Returns Future of created [Worksheet].
   ///
-  /// Throws [GSheetsException] if sheet with [title] already exists.
+  /// Throws [GSheetsException] if sheet with [title] already exists,
+  /// or [index] is invalid.
   Future<Worksheet> copyWorksheet(
     Worksheet ws,
     String title, {
     int index,
   }) async {
+    except((index ?? 0) < 0, 'invalid index ($index)');
     final response = await GSheets._batchUpdate(_client, id, [
       {
         'duplicateSheet': {
@@ -189,7 +230,6 @@ class Spreadsheet {
         }
       }
     ]);
-    checkResponse(response);
     final duplicateSheetJson =
         (jsonDecode(response.body)['replies'] as List)?.first;
     if (duplicateSheetJson != null) {
@@ -208,24 +248,24 @@ class Spreadsheet {
   ///
   /// Returns `true` in case of success.
   ///
-  /// Throws [GSheetsException] if something goes wrong.
+  /// Throws [GSheetsException].
   Future<bool> deleteWorksheet(Worksheet ws) async {
-    final response = await GSheets._batchUpdate(_client, id, [
+    await GSheets._batchUpdate(_client, id, [
       {
         'deleteSheet': {'sheetId': ws.id}
       }
     ]);
-    checkResponse(response);
     sheets.remove(ws);
+    sheets.forEach((sheet) => sheet._decrementIndex(ws.index));
     return true;
   }
 
   /// Returns Future list of [Permission].
   ///
-  /// Requires SheetsApi.DriveScope
+  /// Requires SheetsApi.DriveScope.
   ///
-  /// Throws Exception if auth does not include DriveScope
-  /// Throws GSheetsException if DriveScope is not configured
+  /// Throws Exception if auth does not include DriveScope.
+  /// Throws GSheetsException if DriveScope is not configured.
   Future<List<Permission>> permissions() async {
     final response = await _client.get('$_filesEndpoint$id/permissions');
     checkResponse(response);
@@ -237,14 +277,14 @@ class Spreadsheet {
 
   /// Returns Future [Permission] by email.
   ///
-  /// Requires SheetsApi.DriveScope
+  /// Requires SheetsApi.DriveScope.
   ///
-  /// [email] email of requested permission
+  /// [email] email of requested permission.
   ///
   /// Returns `null` if [email] not found.
   ///
-  /// Throws Exception if auth does not include DriveScope
-  /// Throws GSheetsException if DriveScope is not configured
+  /// Throws Exception if auth does not include DriveScope.
+  /// Throws GSheetsException if DriveScope is not configured.
   Future<Permission> permissionByEmail(String email) async {
     final response = await _client.get('$_filesEndpoint$id/permissions');
     checkResponse(response);
@@ -255,17 +295,17 @@ class Spreadsheet {
 
   /// Shares [Spreadsheet].
   ///
-  /// Requires SheetsApi.DriveScope
+  /// Requires SheetsApi.DriveScope.
   ///
-  /// [user] - the email address or domain name for the entity
-  /// [type] - the account type
-  /// [role] - the primary role for this user
-  /// [withLink] - whether the link is required for this permission
+  /// [user] - the email address or domain name for the entity.
+  /// [type] - the account type.
+  /// [role] - the primary role for this user.
+  /// [withLink] - whether the link is required for this permission.
   ///
   /// Returns Future of shared [Permission].
   ///
-  /// Throws Exception if auth does not include DriveScope
-  /// Throws GSheetsException if DriveScope is not configured
+  /// Throws Exception if auth does not include DriveScope.
+  /// Throws GSheetsException if DriveScope is not configured.
   Future<Permission> share({
     @required String user,
     PermType type = PermType.user,
@@ -288,27 +328,28 @@ class Spreadsheet {
 
   /// Revokes permission by [id].
   ///
-  /// [id] - permission id to remove
+  /// [id] - permission id to remove.
   ///
-  /// Returns `true` in case of success
+  /// Returns `true` in case of success.
   ///
-  /// Throws Exception if auth does not include DriveScope
-  /// Throws GSheetsException if DriveScope is not configured
+  /// Throws Exception if auth does not include DriveScope.
+  /// Throws GSheetsException if DriveScope is not configured.
   Future<bool> revokePermissionById(String id) async {
     final response = await _client.delete(
       '$_filesEndpoint${this.id}/permissions/$id',
     );
+    checkResponse(response);
     return response.statusCode == 204;
   }
 
   /// Revokes permission by [email].
   ///
-  /// [email] - email to remove permission for
+  /// [email] - email to remove permission for.
   ///
-  /// Returns `true` in case of success
+  /// Returns `true` in case of success.
   ///
-  /// Throws Exception if auth does not include DriveScope
-  /// Throws GSheetsException if DriveScope is not configured
+  /// Throws Exception if auth does not include DriveScope.
+  /// Throws GSheetsException if DriveScope is not configured.
   Future<bool> revokePermissionByEmail(String email) async {
     final permission = await permissionByEmail(email);
     if (permission == null) {
@@ -463,16 +504,20 @@ class Worksheet {
     if (_index > index) ++_index;
   }
 
+  _decrementIndex(int index) {
+    if (_index > index) --_index;
+  }
+
   /// Updates title of this [Worksheet].
   ///
   /// Returns Future `true` in case of success.
   ///
-  /// Throws [GSheetsException] if something goes wrong.
+  /// Throws [GSheetsException].
   Future<bool> updateTitle(String title) async {
     if (_title == title || isNullOrEmpty(title)) {
       return false;
     }
-    final response = await GSheets._batchUpdate(_client, spreadsheetId, [
+    await GSheets._batchUpdate(_client, spreadsheetId, [
       {
         'updateSheetProperties': {
           'properties': {
@@ -483,14 +528,13 @@ class Worksheet {
         }
       }
     ]);
-    checkResponse(response);
     _title = title;
     return true;
   }
 
   Future<bool> _deleteDimension(String dimen, int index, int length) async {
     checkL(length);
-    final response = await GSheets._batchUpdate(_client, spreadsheetId, [
+    await GSheets._batchUpdate(_client, spreadsheetId, [
       {
         'deleteDimension': {
           'range': {
@@ -502,13 +546,12 @@ class Worksheet {
         }
       }
     ]);
-    checkResponse(response);
     return true;
   }
 
   /// Deletes columns from [Worksheet].
   ///
-  /// [column] - index of a column to delete
+  /// [column] - index of a column to delete,
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to 1), the number of columns to delete
@@ -516,7 +559,7 @@ class Worksheet {
   ///
   /// Returns Future `true` in case of success.
   ///
-  /// Throws [GSheetsException] if something goes wrong.
+  /// Throws [GSheetsException].
   Future<bool> deleteColumn(int column, {int length = 1}) async {
     checkC(column);
     return _deleteDimension(DIMEN_COLUMNS, column, length);
@@ -524,7 +567,7 @@ class Worksheet {
 
   /// Deletes rows from [Worksheet].
   ///
-  /// [row] - index of a row to delete
+  /// [row] - index of a row to delete,
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to 1), the number of rows to delete
@@ -532,7 +575,7 @@ class Worksheet {
   ///
   /// Returns Future `true` in case of success.
   ///
-  /// Throws [GSheetsException] if something goes wrong.
+  /// Throws [GSheetsException].
   Future<bool> deleteRow(int row, {int length = 1}) async {
     checkR(row);
     return _deleteDimension(DIMEN_ROWS, row, length);
@@ -545,7 +588,7 @@ class Worksheet {
     bool inheritFromBefore,
   ) async {
     checkL(length);
-    final response = await GSheets._batchUpdate(_client, spreadsheetId, [
+    await GSheets._batchUpdate(_client, spreadsheetId, [
       {
         'insertDimension': {
           'range': {
@@ -558,13 +601,12 @@ class Worksheet {
         }
       }
     ]);
-    checkResponse(response);
     return true;
   }
 
   /// Inserts new columns to [Worksheet].
   ///
-  /// [column] - index of a column to insert
+  /// [column] - index of a column to insert,
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to 1), the number of columns to insert
@@ -577,7 +619,7 @@ class Worksheet {
   ///
   /// Returns Future `true` in case of success.
   ///
-  /// Throws [GSheetsException] if something goes wrong.
+  /// Throws [GSheetsException].
   Future<bool> insertColumn(
     int column, {
     int length = 1,
@@ -589,7 +631,7 @@ class Worksheet {
 
   /// Inserts new rows to [Worksheet].
   ///
-  /// [row] - index of a row to insert
+  /// [row] - index of a row to insert,
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to 1), the number of rows to insert
@@ -602,7 +644,7 @@ class Worksheet {
   ///
   /// Returns Future `true` in case of success.
   ///
-  /// Throws [GSheetsException] if something goes wrong.
+  /// Throws [GSheetsException].
   Future<bool> insertRow(
     int row, {
     int length = 1,
@@ -626,7 +668,7 @@ class Worksheet {
     final cFrom = from < to ? from : to;
     final cTo = from < to ? to : from + length - 1;
     final cLength = from < to ? length : from - to;
-    final response = await GSheets._batchUpdate(_client, spreadsheetId, [
+    await GSheets._batchUpdate(_client, spreadsheetId, [
       {
         'moveDimension': {
           'source': {
@@ -639,13 +681,12 @@ class Worksheet {
         }
       }
     ]);
-    checkResponse(response);
     return true;
   }
 
   /// Moves columns.
   ///
-  /// [from] - index of a first column to move
+  /// [from] - index of a first column to move,
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to 1), the number of columns to move
@@ -655,7 +696,7 @@ class Worksheet {
   ///
   /// Returns Future `true` in case of success.
   ///
-  /// Throws [GSheetsException] if something goes wrong.
+  /// Throws [GSheetsException].
   Future<bool> moveColumn({
     @required int from,
     @required int to,
@@ -666,7 +707,7 @@ class Worksheet {
 
   /// Moves rows.
   ///
-  /// [from] - index of a first row to move
+  /// [from] - index of a first row to move,
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to 1), the number of rows to move
@@ -676,7 +717,7 @@ class Worksheet {
   ///
   /// Returns Future `true` in case of success.
   ///
-  /// Throws [GSheetsException] if something goes wrong.
+  /// Throws [GSheetsException].
   Future<bool> moveRow({
     @required int from,
     @required int to,
@@ -689,6 +730,7 @@ class Worksheet {
     final response = await _client.get(
       '$_sheetsEndpoint$spreadsheetId/values/$range?majorDimension=$dimension',
     );
+    checkResponse(response);
     return ((jsonDecode(response.body)['values'] as List)?.first as List)
             ?.cast<String>() ??
         [];
@@ -698,6 +740,7 @@ class Worksheet {
     final response = await _client.get(
       '$_sheetsEndpoint$spreadsheetId/values/$range?majorDimension=$dimension',
     );
+    checkResponse(response);
     final list = <List<String>>[];
     (jsonDecode(response.body)['values'] as List)?.forEach((sublist) {
       list.add(sublist?.cast<String>() ?? <String>[]);
@@ -720,6 +763,7 @@ class Worksheet {
         },
       ),
     );
+    checkResponse(response);
     return response.statusCode == 200;
   }
 
@@ -727,21 +771,23 @@ class Worksheet {
     final response = await _client.post(
       '$_sheetsEndpoint$spreadsheetId/values/$range:clear',
     );
-    print(response.body);
+    checkResponse(response);
     return response.statusCode == 200;
   }
 
   Future<String> _rowRange(int row, int column, [int length = -1]) async {
-    await _expand(row, column + length - 1);
+    final expand = _expand(row, column + length - 1);
     String label = getColumnLetter(column);
     String labelTo = length > 0 ? getColumnLetter(column + length - 1) : '';
+    await expand;
     return "'$_title'!${label}${row}:${labelTo}${row}";
   }
 
   Future<String> _columnRange(int column, int row, [int length = -1]) async {
-    await _expand(row + length - 1, column);
+    final expand = _expand(row + length - 1, column);
     String label = getColumnLetter(column);
     String to = length > 0 ? '${row + length - 1}' : '';
+    await expand;
     return "'$_title'!$label${row}:$label$to";
   }
 
@@ -750,10 +796,11 @@ class Worksheet {
     int row, [
     int length = -1,
   ]) async {
-    await _expand(row + length - 1, column);
+    final expand = _expand(row + length - 1, column);
     String fromLabel = getColumnLetter(column);
     String toLabel = getColumnLetter(columnCount);
     int to = length > 0 ? row + length - 1 : rowCount;
+    await expand;
     return "'$_title'!$fromLabel${row}:$toLabel$to";
   }
 
@@ -762,11 +809,12 @@ class Worksheet {
     int column, [
     int length = -1,
   ]) async {
-    await _expand(row, column + length - 1);
+    final expand = _expand(row, column + length - 1);
     String label = getColumnLetter(column);
     String toLabel = length > 0
         ? getColumnLetter(column + length - 1)
         : getColumnLetter(columnCount);
+    await expand;
     return "'$_title'!${label}${row}:$toLabel$rowCount";
   }
 
@@ -801,21 +849,25 @@ class Worksheet {
   /// Clears the whole [Worksheet].
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> clear() => _clear("'$title'");
 
   /// Clears specified column.
   ///
-  /// [column] - index of a column to clear
+  /// [column] - index of a column to clear,
   /// columns start at index 1 (column A)
   ///
   /// [fromRow] - optional (defaults to 1), index of a row that the column
-  /// will be cleared from (values before [fromRow] will remain uncleared)
+  /// will be cleared from (values before [fromRow] will remain uncleared),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), number of cells to clear in the
   /// column
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> clearColumn(
     int column, {
     int fromRow = 1,
@@ -827,16 +879,18 @@ class Worksheet {
 
   /// Clears specified row.
   ///
-  /// [row] - index of a row to clear
+  /// [row] - index of a row to clear,
   /// rows start at index 1
   ///
   /// [fromColumn] - optional (defaults to 1), index of a column that the row
-  /// will be cleared from (values before [fromColumn] will remain uncleared)
+  /// will be cleared from (values before [fromColumn] will remain uncleared),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), number of cells to clear in the row
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> clearRow(
     int row, {
     int fromColumn = 1,
@@ -862,17 +916,19 @@ class WorksheetAsValues {
 
   /// Fetches specified column.
   ///
-  /// [column] - index of a requested column
+  /// [column] - index of a requested column,
   /// columns start at index 1 (column A)
   ///
   /// [fromRow] - optional (defaults to 1), index of a row that requested column
-  /// starts from (values before [fromRow] will be skipped)
+  /// starts from (values before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), the length of a requested column
   /// if length is `-1`, all values starting from [fromRow] will be returned
   ///
   /// Returns column as Future [List] of [String].
+  ///
+  /// Throws [GSheetsException].
   Future<List<String>> column(
     int column, {
     int fromRow = 1,
@@ -885,17 +941,19 @@ class WorksheetAsValues {
 
   /// Fetches specified row.
   ///
-  /// [row] - index of a requested row
+  /// [row] - index of a requested row,
   /// rows start at index 1
   ///
   /// [fromColumn] - optional (defaults to 1), index of a column that requested row
-  /// starts from (values before [fromColumn] will be skipped)
+  /// starts from (values before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), the length of a requested row
   /// if length is `-1`, all values starting from [fromColumn] will be returned
   ///
   /// Returns row as Future [List] of [String].
+  ///
+  /// Throws [GSheetsException].
   Future<List<String>> row(
     int row, {
     int fromColumn = 1,
@@ -912,13 +970,15 @@ class WorksheetAsValues {
   /// The first row considered to be column names
   ///
   /// [fromRow] - optional (defaults to 2), index of a row that requested column
-  /// starts from (values before [fromRow] will be skipped)
+  /// starts from (values before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), the length of a requested column
   /// if length is `-1`, all values starting from [fromRow] will be returned
   ///
   /// Returns column as Future [List] of [String].
+  ///
+  /// Throws [GSheetsException].
   Future<List<String>> columnByKey(
     String key, {
     int fromRow = 2,
@@ -935,13 +995,15 @@ class WorksheetAsValues {
   /// The column A considered to be row names
   ///
   /// [fromColumn] - optional (defaults to 2), index of a column that requested row
-  /// starts from (values before [fromColumn] will be skipped)
+  /// starts from (values before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), the length of a requested row
   /// if length is `-1`, all values starting from [fromColumn] will be returned
   ///
   /// Returns row as Future [List] of [String].
+  ///
+  /// Throws [GSheetsException].
   Future<List<String>> rowByKey(
     String key, {
     int fromColumn = 2,
@@ -955,53 +1017,59 @@ class WorksheetAsValues {
   /// Fetches last column.
   ///
   /// [fromRow] - optional (defaults to 1), index of a row that requested column
-  /// starts from (values before [fromRow] will be skipped)
+  /// starts from (values before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), the length of a requested column
   /// if length is `-1`, all values starting from [fromRow] will be returned
   ///
   /// Returns last column as Future [List] of [String].
+  ///
+  /// Throws [GSheetsException].
   Future<List<String>> lastColumn({
     int fromRow = 1,
     int length = -1,
   }) async {
-    final column = (await this.row(1)).length;
+    final column = maxLength(await this.allRows());
     return this.column(column, fromRow: fromRow, length: length);
   }
 
   /// Fetches last row.
   ///
   /// [fromColumn] - optional (defaults to 1), index of a column that requested row
-  /// starts from (values before [fromColumn] will be skipped)
+  /// starts from (values before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), the length of a requested row
   /// if length is `-1`, all values starting from [fromColumn] will be returned
   ///
   /// Returns last row as Future [List] of [String].
+  ///
+  /// Throws [GSheetsException].
   Future<List<String>> lastRow({
     int fromColumn = 1,
     int length = -1,
   }) async {
-    final row = (await this.column(1)).length;
+    final row = maxLength(await this.allColumns());
     return this.row(row, fromColumn: fromColumn, length: length);
   }
 
   /// Fetches all columns.
   ///
   /// [fromColumn] - optional (defaults to 1), index of a first returned column
-  /// (columns before [fromColumn] will be skipped)
+  /// (columns before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [fromRow] - optional (defaults to 1), index of a row that columns start from
-  /// (values before [fromRow] will be skipped)
+  /// (values before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), the length of a requested columns
   /// if length is `-1`, all values starting from [fromRow] will be returned
   ///
   /// Returns all columns as Future [List] of [List].
+  ///
+  /// Throws [GSheetsException].
   Future<List<List<String>>> allColumns({
     int fromColumn = 1,
     int fromRow = 1,
@@ -1015,17 +1083,19 @@ class WorksheetAsValues {
   /// Fetches all rows.
   ///
   /// [fromRow] - optional (defaults to 1), index of a first returned row
-  /// (rows before [fromRow] will be skipped)
+  /// (rows before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [fromColumn] - optional (defaults to 1), index of a column that rows start
-  /// from (values before [fromColumn] will be skipped)
+  /// from (values before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), the length of a requested rows
   /// if length is `-1`, all values starting from [fromColumn] will be returned
   ///
   /// Returns all rows as Future [List] of [List].
+  ///
+  /// Throws [GSheetsException].
   Future<List<List<String>>> allRows({
     int fromRow = 1,
     int fromColumn = 1,
@@ -1038,13 +1108,15 @@ class WorksheetAsValues {
 
   /// Fetches cell's value.
   ///
-  /// [column] - column index of a requested cell's value
+  /// [column] - column index of a requested cell's value,
   /// columns start at index 1 (column A)
   ///
-  /// [row] - row index of a requested cell's value
+  /// [row] - row index of a requested cell's value,
   /// rows start at index 1
   ///
   /// Returns cell's value as Future [String].
+  ///
+  /// Throws [GSheetsException].
   Future<String> value({
     @required int column,
     @required int row,
@@ -1065,27 +1137,30 @@ class WorksheetAsValues {
   /// Returns cell's value as Future [String].
   ///
   /// Returns `null` if either [rowKey] or [columnKey] not found.
+  ///
+  /// Throws [GSheetsException].
   Future<String> valueByKeys({
     @required String rowKey,
     @required String columnKey,
   }) async {
-    final column = await columnIndexOf(columnKey, add: false);
-    if (column < 1) return null;
-    final row = await rowIndexOf(rowKey, add: false);
-    if (row < 1) return null;
-    final range = await _ws._columnRange(column, row);
+    final column = columnIndexOf(columnKey, add: false);
+    final row = rowIndexOf(rowKey, add: false);
+    if (await column < 1 || await row < 1) return null;
+    final range = await _ws._columnRange(await column, await row);
     return getOrEmpty(await _ws._get(range, DIMEN_COLUMNS));
   }
 
   /// Updates cell's value to [value].
   ///
-  /// [row] - row index to insert [value] to
+  /// [row] - row index to insert [value] to,
   /// rows start at index 1
   ///
-  /// [column] - column index to insert [value] to
+  /// [column] - column index to insert [value] to,
   /// columns start at index 1 (column A)
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> insertValue(
     String value, {
     @required int column,
@@ -1108,30 +1183,34 @@ class WorksheetAsValues {
   /// The column A considered to be row names
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> insertValueByKeys(
     String value, {
     @required String columnKey,
     @required String rowKey,
   }) async {
-    int column = await columnIndexOf(columnKey, add: true);
-    int row = await rowIndexOf(rowKey, add: true);
-    return insertValue(value, column: column, row: row);
+    final column = columnIndexOf(columnKey, add: true);
+    final row = rowIndexOf(rowKey, add: true);
+    return insertValue(value, column: await column, row: await row);
   }
 
   /// Returns index of a column with [key] value in [inRow].
   ///
   /// [key] - value to look for
   ///
-  /// [inRow] - optional (defaults to 1), row index in which [key] is looked for
+  /// [inRow] - optional (defaults to 1), row index in which [key] is looked for,
   /// rows start at index 1
   ///
   /// [add] - optional (defaults to `false`), whether the [key] should be added
   /// to [inRow] in case of absence
   ///
   /// Returns Future `-1` if not found and [add] is false.
+  ///
+  /// Throws [GSheetsException].
   Future<int> columnIndexOf(
     String key, {
-    bool add = true,
+    bool add = false,
     int inRow = 1,
   }) async {
     except(isNullOrEmpty(key), 'invalid key ($key)');
@@ -1157,13 +1236,15 @@ class WorksheetAsValues {
   /// [key] - value to look for
   ///
   /// [inColumn] - optional (defaults to 1), column index in which [key] is
-  /// looked for
+  /// looked for,
   /// columns start at index 1 (column A)
   ///
   /// [add] - optional (defaults to `false`), whether the [key] should be added
   /// to [inColumn] in case of absence
   ///
   /// Returns Future `-1` if [key] is not found and [add] is false.
+  ///
+  /// Throws [GSheetsException].
   Future<int> rowIndexOf(
     String key, {
     bool add = false,
@@ -1191,14 +1272,16 @@ class WorksheetAsValues {
   ///
   /// [values] - values to insert (not null nor empty)
   ///
-  /// [column] - column index to insert [values] to
+  /// [column] - column index to insert [values] to,
   /// columns start at index 1 (column A)
   ///
   /// [fromRow] - optional (defaults to 1), row index for the first inserted value
-  /// of [values]
+  /// of [values],
   /// rows start at index 1
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> insertColumn(
     int column,
     List<String> values, {
@@ -1221,10 +1304,12 @@ class WorksheetAsValues {
   /// The first row considered to be column names
   ///
   /// [fromRow] - optional (defaults to 2), row index for the first inserted value
-  /// of [values]
+  /// of [values],
   /// rows start at index 1
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> insertColumnByKey(
     String key,
     List<String> values, {
@@ -1242,15 +1327,17 @@ class WorksheetAsValues {
   /// [values] - values to insert (not null nor empty)
   ///
   /// [fromRow] - optional (defaults to 1), row index for the first inserted value
-  /// of [values]
+  /// of [values],
   /// rows start at index 1
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> appendColumn(
     List<String> values, {
     int fromRow = 1,
   }) async {
-    final column = (await this.row(1)).length + 1;
+    final column = maxLength(await this.allRows()) + 1;
     return insertColumn(column, values, fromRow: fromRow);
   }
 
@@ -1258,14 +1345,16 @@ class WorksheetAsValues {
   ///
   /// [values] - values to insert (not null nor empty)
   ///
-  /// [row] - row index to insert [values] to
+  /// [row] - row index to insert [values] to,
   /// rows start at index 1
   ///
   /// [fromColumn] - optional (defaults to 1), column index for the first inserted
-  /// value of [values]
+  /// value of [values],
   /// columns start at index 1 (column A)
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> insertRow(
     int row,
     List<String> values, {
@@ -1288,10 +1377,12 @@ class WorksheetAsValues {
   /// The column A considered to be row names
   ///
   /// [fromColumn] - optional (defaults to 2), column index for the first inserted
-  /// value of [values]
+  /// value of [values],
   /// columns start at index 1 (column A)
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> insertRowByKey(
     String key,
     List<String> values, {
@@ -1309,15 +1400,17 @@ class WorksheetAsValues {
   /// [values] - values to insert (not null nor empty)
   ///
   /// [fromColumn] - optional (defaults to 1), column index for the first inserted
-  /// value of [values]
+  /// value of [values],
   /// columns start at index 1 (column A)
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> appendRow(
     List<String> values, {
     int fromColumn = 1,
   }) async {
-    final row = (await this.column(1)).length + 1;
+    final row = maxLength(await this.allColumns()) + 1;
     return insertRow(row, values, fromColumn: fromColumn);
   }
 }
@@ -1329,21 +1422,23 @@ class ValueMapper {
 
   /// Fetches specified column, maps it to other column and returns map.
   ///
-  /// [column] - index of a requested column (values of returned map)
+  /// [column] - index of a requested column (values of returned map),
   /// columns start at index 1 (column A)
   ///
   /// [fromRow] - optional (defaults to 1), index of a row that requested column
-  /// starts from (values before [fromRow] will be skipped)
+  /// starts from (values before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), the length of a requested column
   /// if length is `-1`, all values starting from [fromRow] will be returned
   ///
   /// [mapTo] - optional (defaults to 1), index of a column to map values to
-  /// (keys of returned map)
+  /// (keys of returned map),
   /// columns start at index 1 (column A)
   ///
   /// Returns column as Future [Map] of [String] to [String].
+  ///
+  /// Throws [GSheetsException].
   Future<Map<String, String>> column(
     int column, {
     int fromRow = 1,
@@ -1351,31 +1446,40 @@ class ValueMapper {
     int mapTo = 1,
   }) async {
     checkM(column, mapTo);
-    final values =
-        await _values.column(column, fromRow: fromRow, length: length);
-    final keys = await _values.column(mapTo, fromRow: fromRow, length: length);
+    final values = _values.column(
+      column,
+      fromRow: fromRow,
+      length: length,
+    );
+    final keys = _values.column(
+      mapTo,
+      fromRow: fromRow,
+      length: length,
+    );
     final map = <String, String>{};
-    mapKeysToValues(keys, values, map, '', null);
+    mapKeysToValues(await keys, await values, map, '', null);
     return map;
   }
 
   /// Fetches specified row, maps it to other row and returns map.
   ///
-  /// [row] - index of a requested row (values of returned map)
+  /// [row] - index of a requested row (values of returned map),
   /// rows start at index 1
   ///
   /// [fromColumn] - optional (defaults to 1), index of a column that requested row
-  /// starts from (values before [fromColumn] will be skipped)
+  /// starts from (values before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), the length of a requested row
   /// if length is `-1`, all values starting from [fromColumn] will be returned
   ///
   /// [mapTo] - optional (defaults to 1), index of a row to map values to
-  /// (keys of returned map)
+  /// (keys of returned map),
   /// rows start at index 1
   ///
   /// Returns row as Future [Map] of [String] to [String].
+  ///
+  /// Throws [GSheetsException].
   Future<Map<String, String>> row(
     int row, {
     int fromColumn = 1,
@@ -1383,12 +1487,18 @@ class ValueMapper {
     int mapTo = 1,
   }) async {
     checkM(row, mapTo);
-    final values =
-        await _values.row(row, fromColumn: fromColumn, length: length);
-    final keys =
-        await _values.row(mapTo, fromColumn: fromColumn, length: length);
+    final values = _values.row(
+      row,
+      fromColumn: fromColumn,
+      length: length,
+    );
+    final keys = _values.row(
+      mapTo,
+      fromColumn: fromColumn,
+      length: length,
+    );
     final map = <String, String>{};
-    mapKeysToValues(keys, values, map, '', null);
+    mapKeysToValues(await keys, await values, map, '', null);
     return map;
   }
 
@@ -1399,17 +1509,19 @@ class ValueMapper {
   /// [key] - name of a requested column (values of returned map)
   ///
   /// [fromRow] - optional (defaults to 1), index of a row that requested column
-  /// starts from (values before [fromRow] will be skipped)
+  /// starts from (values before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), the length of a requested column
   /// if length is `-1`, all values starting from [fromRow] will be returned
   ///
   /// [mapTo] - optional, name of a column to map values to (keys of returned
-  /// map), if [mapTo] is `null` then values will be mapped to column A
+  /// map), if [mapTo] is `null` then values will be mapped to column A,
   /// columns start at index 1 (column A)
   ///
   /// Returns column as Future [Map] of [String] to [String].
+  ///
+  /// Throws [GSheetsException].
   Future<Map<String, String>> columnByKey(
     String key, {
     int fromRow = 2,
@@ -1417,15 +1529,17 @@ class ValueMapper {
     String mapTo,
   }) async {
     checkM(key, mapTo);
-    final column = await _values.columnIndexOf(key, add: false);
-    if (column < 1) return null;
-    if (isNullOrEmpty(mapTo)) {
-      return this.column(column, fromRow: fromRow, length: length);
-    }
-    final mapToIndex = await _values.columnIndexOf(mapTo, add: false);
-    if (mapToIndex < 1) return null;
-    return this
-        .column(column, fromRow: fromRow, length: length, mapTo: mapToIndex);
+    final column = _values.columnIndexOf(key, add: false);
+    final mapToIndex = isNullOrEmpty(mapTo)
+        ? Future.value(1)
+        : _values.columnIndexOf(mapTo, add: false);
+    if (await column < 1 || await mapToIndex < 1) return null;
+    return this.column(
+      await column,
+      fromRow: fromRow,
+      length: length,
+      mapTo: await mapToIndex,
+    );
   }
 
   /// Fetches row by its name, maps it to other row, and returns map.
@@ -1435,17 +1549,19 @@ class ValueMapper {
   /// [key] - name of a requested row (values of returned map)
   ///
   /// [fromColumn] - optional (defaults to 1), index of a column that requested row
-  /// starts from (values before [fromColumn] will be skipped)
+  /// starts from (values before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), the length of a requested row
   /// if length is `-1`, all values starting from [fromColumn] will be returned
   ///
   /// [mapTo] - optional, name of a row to map values to (keys of returned
-  /// map), if [mapTo] is `null` then values will be mapped to first row
+  /// map), if [mapTo] is `null` then values will be mapped to first row,
   /// rows start at index 1
   ///
   /// Returns row as Future [Map] of [String] to [String].
+  ///
+  /// Throws [GSheetsException].
   Future<Map<String, String>> rowByKey(
     String key, {
     int fromColumn = 2,
@@ -1453,37 +1569,41 @@ class ValueMapper {
     String mapTo,
   }) async {
     checkM(key, mapTo);
-    final row = await _values.rowIndexOf(key, add: false);
-    if (row < 1) return null;
-    if (isNullOrEmpty(mapTo)) {
-      return this.row(row, fromColumn: fromColumn, length: length);
-    }
-    final mapToIndex = await _values.rowIndexOf(mapTo, add: false);
-    if (mapToIndex < 1) return null;
-    return this
-        .row(row, fromColumn: fromColumn, length: length, mapTo: mapToIndex);
+    final row = _values.rowIndexOf(key, add: false);
+    final mapToIndex = isNullOrEmpty(mapTo)
+        ? Future.value(1)
+        : _values.rowIndexOf(mapTo, add: false);
+    if (await row < 1 || await mapToIndex < 1) return null;
+    return this.row(
+      await row,
+      fromColumn: fromColumn,
+      length: length,
+      mapTo: await mapToIndex,
+    );
   }
 
   /// Fetches last column, maps it to other column and returns map.
   ///
   /// [fromRow] - optional (defaults to 1), index of a row that requested column
-  /// starts from (values before [fromRow] will be skipped)
+  /// starts from (values before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), the length of a requested column
   /// if length is `-1`, all values starting from [fromRow] will be returned
   ///
   /// [mapTo] - optional (defaults to 1), index of a column to map values to
-  /// (keys of returned map)
+  /// (keys of returned map),
   /// columns start at index 1 (column A)
   ///
   /// Returns column as Future [Map] of [String] to [String].
+  ///
+  /// Throws [GSheetsException].
   Future<Map<String, String>> lastColumn({
     int fromRow = 1,
     int length = -1,
     int mapTo = 1,
   }) async {
-    final column = (await _values.row(1)).length;
+    final column = maxLength(await _values.allRows());
     if (column < 1) return null;
     return this.column(column, fromRow: fromRow, length: length, mapTo: mapTo);
   }
@@ -1491,23 +1611,25 @@ class ValueMapper {
   /// Fetches last row, maps it to other row and returns map.
   ///
   /// [fromColumn] - optional (defaults to 1), index of a column that requested row
-  /// starts from (values before [fromColumn] will be skipped)
+  /// starts from (values before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), the length of a requested row
   /// if length is `-1`, all values starting from [fromColumn] will be returned
   ///
   /// [mapTo] - optional (defaults to 1), index of a row to map values to
-  /// (keys of returned map)
+  /// (keys of returned map),
   /// rows start at index 1
   ///
   /// Returns row as Future [Map] of [String] to [String].
+  ///
+  /// Throws [GSheetsException].
   Future<Map<String, String>> lastRow({
     int fromColumn = 1,
     int length = -1,
     int mapTo = 1,
   }) async {
-    final row = (await _values.column(1)).length;
+    final row = maxLength(await _values.allColumns());
     if (row < 1) return null;
     return this.row(row, fromColumn: fromColumn, length: length, mapTo: mapTo);
   }
@@ -1519,11 +1641,11 @@ class ValueMapper {
   /// [column] - column index to insert values of [map] to,
   /// columns start at index 1 (column A)
   ///
-  /// [fromRow] - optional (defaults to 1), row index for the first inserted value
+  /// [fromRow] - optional (defaults to 1), row index for the first inserted value,
   /// rows start at index 1
   ///
   /// [mapTo] - optional (defaults to 1), index of a column to which
-  /// keys of the [map] will be mapped to
+  /// keys of the [map] will be mapped to,
   /// columns start at index 1 (column A)
   ///
   /// [appendMissing] - optional (defaults to `false`), whether keys of [map]
@@ -1534,6 +1656,8 @@ class ValueMapper {
   /// [column] if [map] does not contain value for them
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> insertColumn(
     int column,
     Map<String, String> map, {
@@ -1559,6 +1683,12 @@ class ValueMapper {
       }
     }
 
+    final insertion = _values.insertColumn(
+      column,
+      newColumn,
+      fromRow: fromRow,
+    );
+
     if (appendMissing && columnMap.isNotEmpty) {
       final newKeys = <String>[];
       for (MapEntry entry in columnMap.entries) {
@@ -1571,8 +1701,7 @@ class ValueMapper {
         fromRow: fromRow + rows.length,
       );
     }
-
-    return _values.insertColumn(column, newColumn, fromRow: fromRow);
+    return insertion;
   }
 
   /// Updates column values with values from [map] by column names.
@@ -1583,7 +1712,7 @@ class ValueMapper {
   ///
   /// [key] - name of a requested column (values of returned map)
   ///
-  /// [fromRow] - optional (defaults to 2), row index for the first inserted value
+  /// [fromRow] - optional (defaults to 2), row index for the first inserted value,
   /// rows start at index 1
   ///
   /// [mapTo] - optional, name of a column to which keys of the [map] will be
@@ -1597,6 +1726,8 @@ class ValueMapper {
   /// [key] column if [map] does not contain value for them
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> insertColumnByKey(
     String key,
     Map<String, String> map, {
@@ -1606,15 +1737,15 @@ class ValueMapper {
     bool overwrite = false,
   }) async {
     checkM(key, mapTo);
-    final column = await _values.columnIndexOf(key, add: true);
-    final int mapToIndex = isNullOrEmpty(mapTo)
-        ? 1
-        : await _values.columnIndexOf(mapTo, add: false);
+    final column = _values.columnIndexOf(key, add: true);
+    final mapToIndex = isNullOrEmpty(mapTo)
+        ? Future.value(1)
+        : _values.columnIndexOf(mapTo, add: false);
     return insertColumn(
-      column,
+      await column,
       map,
       fromRow: fromRow,
-      mapTo: mapToIndex,
+      mapTo: await mapToIndex,
       appendMissing: appendMissing,
       overwrite: overwrite,
     );
@@ -1624,11 +1755,11 @@ class ValueMapper {
   ///
   /// [map] - map containing values to insert (not null nor empty)
   ///
-  /// [fromRow] - optional (defaults to 1), row index for the first inserted value
+  /// [fromRow] - optional (defaults to 1), row index for the first inserted value,
   /// rows start at index 1
   ///
   /// [mapTo] - optional (defaults to 1), index of a column to which
-  /// keys of the [map] will be mapped to
+  /// keys of the [map] will be mapped to,
   /// columns start at index 1 (column A)
   ///
   /// [appendMissing] - optional (defaults to `false`), whether keys of [map]
@@ -1636,14 +1767,15 @@ class ValueMapper {
   /// should be added
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> appendColumn(
     Map<String, String> map, {
     int fromRow = 1,
     int mapTo = 1,
     bool appendMissing = false,
   }) async {
-    final column = (await _values.row(1)).length + 1;
-    if (column < 2) return false;
+    final column = maxLength(await _values.allRows()) + 1;
     return insertColumn(
       column,
       map,
@@ -1662,11 +1794,11 @@ class ValueMapper {
   /// rows start at index 1
   ///
   /// [fromColumn] - optional (defaults to 1), column index for the first inserted
-  /// value
+  /// value,
   /// columns start at index 1 (column A)
   ///
   /// [mapTo] - optional (defaults to 1), index of a row to which
-  /// keys of the [map] will be mapped to
+  /// keys of the [map] will be mapped to,
   /// rows start at index 1
   ///
   /// [appendMissing] - optional (defaults to `false`), whether keys of [map]
@@ -1677,6 +1809,8 @@ class ValueMapper {
   /// [row] if [map] does not contain value for them
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> insertRow(
     int row,
     Map<String, String> map, {
@@ -1702,6 +1836,12 @@ class ValueMapper {
       }
     }
 
+    final insertion = _values.insertRow(
+      row,
+      newRow,
+      fromColumn: fromColumn,
+    );
+
     if (appendMissing && rowMap.isNotEmpty) {
       final newKeys = <String>[];
       for (MapEntry entry in rowMap.entries) {
@@ -1715,7 +1855,7 @@ class ValueMapper {
       );
     }
 
-    return _values.insertRow(row, newRow, fromColumn: fromColumn);
+    return insertion;
   }
 
   /// Updates row values with values from [map] by column names.
@@ -1727,7 +1867,7 @@ class ValueMapper {
   /// [key] - name of a requested row (values of returned map)
   ///
   /// [fromColumn] - optional (defaults to 2), column index for the first inserted
-  /// value
+  /// value,
   /// columns start at index 1 (column A)
   ///
   /// [mapTo] - optional, name of a column to which keys of the [map] will be
@@ -1740,6 +1880,8 @@ class ValueMapper {
   /// contain value for them
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> insertRowByKey(
     String key,
     Map<String, String> map, {
@@ -1749,14 +1891,15 @@ class ValueMapper {
     bool overwrite = false,
   }) async {
     checkM(key, mapTo);
-    final row = await _values.rowIndexOf(key, add: true);
-    final int mapToIndex =
-        isNullOrEmpty(mapTo) ? 1 : await _values.rowIndexOf(mapTo, add: false);
+    final row = _values.rowIndexOf(key, add: true);
+    final mapToIndex = isNullOrEmpty(mapTo)
+        ? Future.value(1)
+        : _values.rowIndexOf(mapTo, add: false);
     return insertRow(
-      row,
+      await row,
       map,
       fromColumn: fromColumn,
-      mapTo: mapToIndex,
+      mapTo: await mapToIndex,
       appendMissing: appendMissing,
       overwrite: overwrite,
     );
@@ -1767,11 +1910,11 @@ class ValueMapper {
   /// [map] - map containing values to insert (not null nor empty)
   ///
   /// [fromColumn] - optional (defaults to 1), column index for the first inserted
-  /// value
+  /// value,
   /// columns start at index 1 (column A)
   ///
   /// [mapTo] - optional (defaults to 1), index of a row to which
-  /// keys of the [map] will be mapped to
+  /// keys of the [map] will be mapped to,
   /// rows start at index 1
   ///
   /// [appendMissing] - optional (defaults to `false`), whether keys of [map]
@@ -1779,14 +1922,15 @@ class ValueMapper {
   /// should be added
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> appendRow(
     Map<String, String> map, {
     int fromColumn = 1,
     int mapTo = 1,
     bool appendMissing = false,
   }) async {
-    final row = (await _values.column(1)).length + 1;
-    if (row < 2) return false;
+    final row = maxLength(await _values.allColumns()) + 1;
     return insertRow(
       row,
       map,
@@ -1820,6 +1964,8 @@ class Cell implements Comparable {
   /// Updates value of a cell.
   ///
   /// Returns Future `true` in case of success
+  ///
+  /// Throws [GSheetsException].
   Future<bool> post(String value) async {
     this.value = value;
     final range = "'$worksheetTitle'!$label";
@@ -1833,13 +1979,12 @@ class Cell implements Comparable {
   /// Refreshes value of a cell.
   ///
   /// Returns Future `true` if value has been changed.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> refresh() async {
     final before = value;
-    value = getOrEmpty(await _ws.values.column(
-      columnIndex,
-      fromRow: rowIndex,
-      length: 1,
-    ));
+    final range = await _ws._columnRange(columnIndex, rowIndex);
+    value = getOrEmpty(await _ws._get(range, DIMEN_COLUMNS));
     return before != value;
   }
 
@@ -1867,17 +2012,19 @@ class WorksheetAsCells {
 
   /// Fetches specified column.
   ///
-  /// [column] - index of a requested column
+  /// [column] - index of a requested column,
   /// columns start at index 1 (column A)
   ///
   /// [fromRow] - optional (defaults to 1), index of a row that requested column
-  /// starts from (cells before [fromRow] will be skipped)
+  /// starts from (cells before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), the length of a requested column
   /// if length is `-1`, all cells starting from [fromRow] will be returned
   ///
   /// Returns column as Future [List] of [Cell].
+  ///
+  /// Throws [GSheetsException].
   Future<List<Cell>> column(
     int column, {
     int fromRow = 1,
@@ -1886,45 +2033,46 @@ class WorksheetAsCells {
     int index = fromRow;
     return List.unmodifiable(
         (await _ws.values.column(column, fromRow: fromRow, length: length))
-            .map((value) {
-      return Cell._(
-        _ws,
-        index++,
-        column,
-        value,
-      );
-    }));
+            .map((value) => Cell._(
+                  _ws,
+                  index++,
+                  column,
+                  value,
+                )));
   }
 
   /// Fetches specified row.
   ///
-  /// [row] - index of a requested row
+  /// [row] - index of a requested row,
   /// rows start at index 1
   ///
   /// [fromColumn] - optional (defaults to 1), index of a column that requested row
-  /// starts from (cells before [fromColumn] will be skipped)
+  /// starts from (cells before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), the length of a requested row
   /// if length is `-1`, all cells starting from [fromColumn] will be returned
   ///
   /// Returns row as Future [List] of [Cell].
+  ///
+  /// Throws [GSheetsException].
   Future<List<Cell>> row(
     int row, {
     int fromColumn = 1,
     int length = -1,
   }) async {
     int index = fromColumn;
-    return List.unmodifiable(
-        (await _ws.values.row(row, fromColumn: fromColumn, length: length))
-            .map((value) {
-      return Cell._(
-        _ws,
-        row,
-        index++,
-        value,
-      );
-    }));
+    return List.unmodifiable((await _ws.values.row(
+      row,
+      fromColumn: fromColumn,
+      length: length,
+    ))
+        .map((value) => Cell._(
+              _ws,
+              row,
+              index++,
+              value,
+            )));
   }
 
   /// Fetches column by its name.
@@ -1933,13 +2081,15 @@ class WorksheetAsCells {
   /// The first row considered to be column names
   ///
   /// [fromRow] - optional (defaults to 2), index of a row that requested column
-  /// starts from (cells before [fromRow] will be skipped)
+  /// starts from (cells before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), the length of a requested column
   /// if length is `-1`, all cells starting from [fromRow] will be returned
   ///
   /// Returns column as Future [List] of [Cell].
+  ///
+  /// Throws [GSheetsException].
   Future<List<Cell>> columnByKey(
     String key, {
     int fromRow = 2,
@@ -1956,13 +2106,15 @@ class WorksheetAsCells {
   /// The column A considered to be row names
   ///
   /// [fromColumn] - optional (defaults to 2), index of a column that requested row
-  /// starts from (cells before [fromColumn] will be skipped)
+  /// starts from (cells before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), the length of a requested row
   /// if length is `-1`, all cells starting from [fromColumn] will be returned
   ///
   /// Returns row as Future [List] of [Cell].
+  ///
+  /// Throws [GSheetsException].
   Future<List<Cell>> rowByKey(
     String key, {
     int fromColumn = 2,
@@ -1976,53 +2128,59 @@ class WorksheetAsCells {
   /// Fetches last column.
   ///
   /// [fromRow] - optional (defaults to 1), index of a row that requested column
-  /// starts from (cells before [fromRow] will be skipped)
+  /// starts from (cells before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), the length of a requested column
   /// if length is `-1`, all cells starting from [fromRow] will be returned
   ///
   /// Returns last column as Future [List] of [Cell].
+  ///
+  /// Throws [GSheetsException].
   Future<List<Cell>> lastColumn({
     int fromRow = 1,
     int length = -1,
   }) async {
-    final column = (await _ws.values.row(1)).length;
+    final column = maxLength(await _ws.values.allRows());
     return this.column(column, fromRow: fromRow, length: length);
   }
 
   /// Fetches last row.
   ///
   /// [fromColumn] - optional (defaults to 1), index of a column that requested row
-  /// starts from (cells before [fromColumn] will be skipped)
+  /// starts from (cells before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), the length of a requested row
   /// if length is `-1`, all cells starting from [fromColumn] will be returned
   ///
   /// Returns last row as Future [List] of [Cell].
+  ///
+  /// Throws [GSheetsException].
   Future<List<Cell>> lastRow({
     int fromColumn = 1,
     int length = -1,
   }) async {
-    final row = (await _ws.values.column(1)).length;
+    final row = maxLength(await _ws.values.allColumns());
     return this.row(row, fromColumn: fromColumn, length: length);
   }
 
   /// Fetches all columns.
   ///
   /// [fromColumn] - optional (defaults to 1), index of a first returned column
-  /// (columns before [fromColumn] will be skipped)
+  /// (columns before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [fromRow] - optional (defaults to 1), index of a row that columns start from
-  /// (cells before [fromRow] will be skipped)
+  /// (cells before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), the length of a requested columns
   /// if length is `-1`, all cells starting from [fromRow] will be returned
   ///
   /// Returns all columns as Future [List] of [List].
+  ///
+  /// Throws [GSheetsException].
   Future<List<List<Cell>>> allColumns({
     int fromColumn = 1,
     int fromRow = 1,
@@ -2030,18 +2188,19 @@ class WorksheetAsCells {
   }) async {
     final list = <List<Cell>>[];
     int colIndex = fromColumn;
-    (await _ws.values.allColumns(
-            fromColumn: fromColumn, fromRow: fromRow, length: length))
-        .forEach((sublist) {
+    final lists = await _ws.values.allColumns(
+      fromColumn: fromColumn,
+      fromRow: fromRow,
+      length: length,
+    );
+    lists.forEach((sublist) {
       int rowIndex = fromRow;
-      list.add(List.unmodifiable(sublist.map((value) {
-        return Cell._(
-          _ws,
-          rowIndex++,
-          colIndex,
-          value,
-        );
-      })));
+      list.add(List.unmodifiable(sublist.map((value) => Cell._(
+            _ws,
+            rowIndex++,
+            colIndex,
+            value,
+          ))));
       colIndex++;
     });
     return List.unmodifiable(list);
@@ -2050,17 +2209,19 @@ class WorksheetAsCells {
   /// Fetches all rows.
   ///
   /// [fromRow] - optional (defaults to 1), index of a first returned row
-  /// (rows before [fromRow] will be skipped)
+  /// (rows before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [fromColumn] - optional (defaults to 1), index of a column that rows start
-  /// from (cells before [fromColumn] will be skipped)
+  /// from (cells before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), the length of a requested rows
   /// if length is `-1`, all cells starting from [fromColumn] will be returned
   ///
   /// Returns all rows as Future [List] of [List].
+  ///
+  /// Throws [GSheetsException].
   Future<List<List<Cell>>> allRows({
     int fromRow = 1,
     int fromColumn = 1,
@@ -2068,18 +2229,19 @@ class WorksheetAsCells {
   }) async {
     final list = <List<Cell>>[];
     int rowIndex = fromRow;
-    (await _ws.values
-            .allRows(fromRow: fromRow, fromColumn: fromColumn, length: length))
-        .forEach((sublist) {
+    final lists = await _ws.values.allRows(
+      fromRow: fromRow,
+      fromColumn: fromColumn,
+      length: length,
+    );
+    lists.forEach((sublist) {
       int colIndex = fromColumn;
-      list.add(List.unmodifiable(sublist.map((value) {
-        return Cell._(
-          _ws,
-          rowIndex,
-          colIndex++,
-          value,
-        );
-      })));
+      list.add(List.unmodifiable(sublist.map((value) => Cell._(
+            _ws,
+            rowIndex,
+            colIndex++,
+            value,
+          ))));
       rowIndex++;
     });
     return List.unmodifiable(list);
@@ -2090,6 +2252,8 @@ class WorksheetAsCells {
   /// [value] - value to look for
   ///
   /// Returns cells as Future [List].
+  ///
+  /// Throws [GSheetsException].
   Future<List<Cell>> findByValue(String value) async {
     final cells = <Cell>[];
     final rows = await _ws.values.allRows();
@@ -2109,13 +2273,15 @@ class WorksheetAsCells {
 
   /// Fetches cell.
   ///
-  /// [column] - column index of a requested cell
+  /// [column] - column index of a requested cell,
   /// columns start at index 1 (column A)
   ///
-  /// [row] - row index of a requested cell
+  /// [row] - row index of a requested cell,
   /// rows start at index 1
   ///
   /// Returns Future [Cell].
+  ///
+  /// Throws [GSheetsException].
   Future<Cell> cell({
     @required int row,
     @required int column,
@@ -2135,16 +2301,18 @@ class WorksheetAsCells {
   /// Returns Future [Cell].
   ///
   /// Returns `null` if either [rowKey] or [columnKey] not found.
+  ///
+  /// Throws [GSheetsException].
   Future<Cell> cellByKeys({
     @required String rowKey,
     @required String columnKey,
   }) async {
-    final column = await _ws.values.columnIndexOf(columnKey, add: false);
-    if (column < 1) return null;
-    final row = await _ws.values.rowIndexOf(rowKey, add: false);
-    if (row < 1) return null;
-    final value = await _ws.values.value(column: column, row: row);
-    return Cell._(_ws, row, column, value);
+    final column = _ws.values.columnIndexOf(columnKey, add: false);
+    final row = _ws.values.rowIndexOf(rowKey, add: false);
+    if (await column < 1 || await row < 1) return null;
+    final range = await _ws._columnRange(await column, await row);
+    final value = getOrEmpty(await _ws._get(range, DIMEN_COLUMNS));
+    return Cell._(_ws, await row, await column, value);
   }
 
   /// Updates cells with values of [cells].
@@ -2152,6 +2320,8 @@ class WorksheetAsCells {
   /// [cells] - cells with values to insert (not null nor empty)
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> insert(List<Cell> cells) async {
     checkV(cells);
     final tuple = _cellsRangeTuple(cells);
@@ -2179,21 +2349,23 @@ class CellsMapper {
 
   /// Fetches specified column, maps it to other column and returns map.
   ///
-  /// [column] - index of a requested column (values of returned map)
+  /// [column] - index of a requested column (values of returned map),
   /// columns start at index 1 (column A)
   ///
   /// [fromRow] - optional (defaults to 1), index of a row that requested column
-  /// starts from (cells before [fromRow] will be skipped)
+  /// starts from (cells before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), the length of a requested column
   /// if length is `-1`, all cells starting from [fromRow] will be returned
   ///
   /// [mapTo] - optional (defaults to 1), index of a column to map cells to
-  /// (keys of returned map)
+  /// (keys of returned map),
   /// columns start at index 1 (column A)
   ///
   /// Returns column as Future [Map] of [String] to [Cell].
+  ///
+  /// Throws [GSheetsException].
   Future<Map<String, Cell>> column(
     int column, {
     int fromRow = 1,
@@ -2201,33 +2373,41 @@ class CellsMapper {
     int length = -1,
   }) async {
     checkM(column, mapTo);
-    final values =
-        await _cells.column(column, fromRow: fromRow, length: length);
-    final keys =
-        await _cells._ws.values.column(mapTo, fromRow: fromRow, length: length);
+    final values = _cells.column(
+      column,
+      fromRow: fromRow,
+      length: length,
+    );
+    final keys = _cells._ws.values.column(
+      mapTo,
+      fromRow: fromRow,
+      length: length,
+    );
     final map = <String, Cell>{};
-    mapKeysToValues(keys, values, map, null,
+    mapKeysToValues(await keys, await values, map, null,
         (index) => Cell._(_cells._ws, fromRow + index, column, ''));
     return Map.unmodifiable(map);
   }
 
   /// Fetches specified row, maps it to other row and returns map.
   ///
-  /// [row] - index of a requested row (values of returned map)
+  /// [row] - index of a requested row (values of returned map),
   /// rows start at index 1
   ///
   /// [fromColumn] - optional (defaults to 1), index of a column that requested row
-  /// starts from (cells before [fromColumn] will be skipped)
+  /// starts from (cells before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), the length of a requested row
   /// if length is `-1`, all cells starting from [fromColumn] will be returned
   ///
   /// [mapTo] - optional (defaults to 1), index of a row to map cells to
-  /// (keys of returned map)
+  /// (keys of returned map),
   /// rows start at index 1
   ///
   /// Returns row as Future [Map] of [String] to [Cell].
+  ///
+  /// Throws [GSheetsException].
   Future<Map<String, Cell>> row(
     int row, {
     int fromColumn = 1,
@@ -2235,12 +2415,18 @@ class CellsMapper {
     int length = -1,
   }) async {
     checkM(row, mapTo);
-    final values =
-        await _cells.row(row, fromColumn: fromColumn, length: length);
-    final keys = await _cells._ws.values
-        .row(mapTo, fromColumn: fromColumn, length: length);
+    final values = _cells.row(
+      row,
+      fromColumn: fromColumn,
+      length: length,
+    );
+    final keys = _cells._ws.values.row(
+      mapTo,
+      fromColumn: fromColumn,
+      length: length,
+    );
     final map = <String, Cell>{};
-    mapKeysToValues(keys, values, map, null,
+    mapKeysToValues(await keys, await values, map, null,
         (index) => Cell._(_cells._ws, row, fromColumn + index, ''));
     return Map.unmodifiable(map);
   }
@@ -2252,17 +2438,19 @@ class CellsMapper {
   /// [key] - name of a requested column (values of returned map)
   ///
   /// [fromRow] - optional (defaults to 1), index of a row that requested column
-  /// starts from (cells before [fromRow] will be skipped)
+  /// starts from (cells before [fromRow] will be skipped),
   /// rows start at index 1
   ///
   /// [length] - optional (defaults to -1), the length of a requested column
   /// if length is `-1`, all cells starting from [fromRow] will be returned
   ///
   /// [mapTo] - optional, name of a column to map cells to (keys of returned
-  /// map), if [mapTo] is `null` then cells will be mapped to column A
+  /// map), if [mapTo] is `null` then cells will be mapped to column A,
   /// columns start at index 1 (column A)
   ///
   /// Returns column as Future [Map] of [String] to [Cell].
+  ///
+  /// Throws [GSheetsException].
   Future<Map<String, Cell>> columnByKey(
     String key, {
     int fromRow = 2,
@@ -2270,13 +2458,17 @@ class CellsMapper {
     int length = -1,
   }) async {
     checkM(key, mapTo);
-    final column = await _cells._ws.values.columnIndexOf(key, add: false);
-    if (column < 1) return null;
+    final column = _cells._ws.values.columnIndexOf(key, add: false);
     final mapToIndex = isNullOrEmpty(mapTo)
-        ? 1
-        : await _cells._ws.values.columnIndexOf(mapTo, add: false);
-    return this
-        .column(column, fromRow: fromRow, length: length, mapTo: mapToIndex);
+        ? Future.value(1)
+        : _cells._ws.values.columnIndexOf(mapTo, add: false);
+    if (await column < 1 || await mapToIndex < 1) return null;
+    return this.column(
+      await column,
+      fromRow: fromRow,
+      length: length,
+      mapTo: await mapToIndex,
+    );
   }
 
   /// Fetches row by its name, maps it to other row, and returns map.
@@ -2286,17 +2478,19 @@ class CellsMapper {
   /// [key] - name of a requested row (values of returned map)
   ///
   /// [fromColumn] - optional (defaults to 1), index of a column that requested row
-  /// starts from (cells before [fromColumn] will be skipped)
+  /// starts from (cells before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
   ///
   /// [length] - optional (defaults to -1), the length of a requested row
   /// if length is `-1`, all cells starting from [fromColumn] will be returned
   ///
   /// [mapTo] - optional, name of a row to map cells to (keys of returned
-  /// map), if [mapTo] is `null` then cells will be mapped to first row
+  /// map), if [mapTo] is `null` then cells will be mapped to first row,
   /// rows start at index 1
   ///
   /// Returns row as Future [Map] of [String] to [Cell].
+  ///
+  /// Throws [GSheetsException].
   Future<Map<String, Cell>> rowByKey(
     String key, {
     int fromColumn = 2,
@@ -2304,13 +2498,17 @@ class CellsMapper {
     int length = -1,
   }) async {
     checkM(key, mapTo);
-    final row = await _cells._ws.values.rowIndexOf(key, add: false);
-    if (row < 1) return null;
+    final row = _cells._ws.values.rowIndexOf(key, add: false);
     final mapToIndex = isNullOrEmpty(mapTo)
-        ? 1
-        : await _cells._ws.values.rowIndexOf(mapTo, add: false);
-    return this
-        .row(row, fromColumn: fromColumn, length: length, mapTo: mapToIndex);
+        ? Future.value(1)
+        : _cells._ws.values.rowIndexOf(mapTo, add: false);
+    if (await row < 1 || await mapToIndex < 1) return null;
+    return this.row(
+      await row,
+      fromColumn: fromColumn,
+      length: length,
+      mapTo: await mapToIndex,
+    );
   }
 
   /// Updates cells with values of [map].
@@ -2318,6 +2516,8 @@ class CellsMapper {
   /// [map] - map containing cells with values to insert (not null nor empty)
   ///
   /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> insert(Map<String, Cell> map) async {
     return _cells.insert(map.values.toList()..sort());
   }
