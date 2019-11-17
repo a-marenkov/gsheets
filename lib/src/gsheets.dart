@@ -885,6 +885,9 @@ class Worksheet {
   ///
   /// [columns] - number of columns to add
   ///
+  /// Returns Future `true` if any rows/columns were added.
+  ///
+  /// Throws [GSheetsException].
   Future<bool> add({int rows = 0, int columns = 0}) async {
     except(rows < 0, 'invalid rows ($rows)');
     except(columns < 0, 'invalid column ($columns)');

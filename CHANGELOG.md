@@ -1,3 +1,7 @@
+## 0.0.1-dev.5+1
+
+- Documentation fixes.
+
 ## 0.0.1-dev.5
 
 - Refactoring with breaking changes - `lenght` parameter of some `Worksheet` methods was renamed to `count` as more appropriate;
