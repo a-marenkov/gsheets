@@ -13,13 +13,13 @@ const _filesEndpoint = 'https://www.googleapis.com/drive/v2/files/';
 
 /// [Exception] that throws gsheets.
 ///
-/// [cause] - exception message
+/// [cause] - exception message.
 ///
 /// GSheetsException is thrown:
 /// - in case of invalid arguments;
-/// - in case of google api returning error.
+/// - in case of google api returning an error.
 class GSheetsException implements Exception {
-  String cause;
+  final String cause;
 
   GSheetsException(this.cause);
 
@@ -32,17 +32,14 @@ class GSheets {
   final ServiceAccountCredentials _credentials;
   final List<String> _scopes;
 
-  /// Creates a new [GSheets].
+  /// Creates an instance of [GSheets].
   ///
   /// [credentialsJson] - must be provided, it can be either a [Map] or a
   /// JSON map encoded as a [String].
   ///
   /// [impersonatedUser] - optional, used to set the user to impersonate
-  /// if impersonating a user.
   ///
   /// [scopes] - optional (defaults to `[SpreadsheetsScope, DriveScope]`).
-  ///
-  /// Creates a new [ServiceAccountCredentials] from JSON.
   GSheets(
     credentialsJson, {
     String impersonatedUser,
@@ -58,7 +55,8 @@ class GSheets {
     client; // initializes client
   }
 
-  /// Returns Future [AutoRefreshingAuthClient].
+  /// Returns Future [AutoRefreshingAuthClient] - autorefreshing,
+  /// authenticated HTTP client.
   Future<AutoRefreshingAuthClient> get client {
     if (_client == null) {
       _client = clientViaServiceAccount(_credentials, _scopes);
@@ -70,7 +68,7 @@ class GSheets {
   ///
   /// Requires SheetsApi.SpreadsheetsScope.
   ///
-  /// Throws Exception if auth does not include SpreadsheetsScope.
+  /// Throws Exception if [GSheets]'s scopes does not include SpreadsheetsScope.
   /// Throws GSheetsException if does not have permission.
   Future<Spreadsheet> spreadsheet(String spreadsheetId) async {
     final client = await this.client;
@@ -264,7 +262,7 @@ class Spreadsheet {
   ///
   /// Requires SheetsApi.DriveScope.
   ///
-  /// Throws Exception if auth does not include DriveScope.
+  /// Throws Exception if [GSheets]'s scopes does not include DriveScope.
   /// Throws GSheetsException if DriveScope is not configured.
   Future<List<Permission>> permissions() async {
     final response = await _client.get('$_filesEndpoint$id/permissions');
@@ -283,7 +281,7 @@ class Spreadsheet {
   ///
   /// Returns `null` if [email] not found.
   ///
-  /// Throws Exception if auth does not include DriveScope.
+  /// Throws Exception if [GSheets]'s scopes does not include DriveScope.
   /// Throws GSheetsException if DriveScope is not configured.
   Future<Permission> permissionByEmail(String email) async {
     final response = await _client.get('$_filesEndpoint$id/permissions');
@@ -304,7 +302,7 @@ class Spreadsheet {
   ///
   /// Returns Future of shared [Permission].
   ///
-  /// Throws Exception if auth does not include DriveScope.
+  /// Throws Exception if [GSheets]'s scopes does not include DriveScope.
   /// Throws GSheetsException if DriveScope is not configured.
   Future<Permission> share({
     @required String user,
@@ -332,7 +330,7 @@ class Spreadsheet {
   ///
   /// Returns `true` in case of success.
   ///
-  /// Throws Exception if auth does not include DriveScope.
+  /// Throws Exception if [GSheets]'s scopes does not include DriveScope.
   /// Throws GSheetsException if DriveScope is not configured.
   Future<bool> revokePermissionById(String id) async {
     final response = await _client.delete(
@@ -344,11 +342,13 @@ class Spreadsheet {
 
   /// Revokes permission by [email].
   ///
+  /// Prefer using `revokePermissionById` if your know the id.
+  ///
   /// [email] - email to remove permission for.
   ///
   /// Returns `true` in case of success.
   ///
-  /// Throws Exception if auth does not include DriveScope.
+  /// Throws Exception if [GSheets]'s scopes does not include DriveScope.
   /// Throws GSheetsException if DriveScope is not configured.
   Future<bool> revokePermissionByEmail(String email) async {
     final permission = await permissionByEmail(email);
@@ -532,8 +532,8 @@ class Worksheet {
     return true;
   }
 
-  Future<bool> _deleteDimension(String dimen, int index, int length) async {
-    checkL(length);
+  Future<bool> _deleteDimension(String dimen, int index, int count) async {
+    except(count < 1, 'invalid count ($count)');
     await GSheets._batchUpdate(_client, spreadsheetId, [
       {
         'deleteDimension': {
@@ -541,7 +541,7 @@ class Worksheet {
             'sheetId': id,
             "dimension": dimen,
             "startIndex": index - 1,
-            "endIndex": index - 1 + length,
+            "endIndex": index - 1 + count,
           },
         }
       }
@@ -554,15 +554,19 @@ class Worksheet {
   /// [column] - index of a column to delete,
   /// columns start at index 1 (column A)
   ///
-  /// [length] - optional (defaults to 1), the number of columns to delete
+  /// [count] - optional (defaults to 1), the number of columns to delete
   /// starting from [column]
   ///
   /// Returns Future `true` in case of success.
   ///
   /// Throws [GSheetsException].
-  Future<bool> deleteColumn(int column, {int length = 1}) async {
+  Future<bool> deleteColumn(int column, {int count = 1}) async {
     checkC(column);
-    return _deleteDimension(DIMEN_COLUMNS, column, length);
+    final isDeleted = await _deleteDimension(DIMEN_COLUMNS, column, count);
+    if (isDeleted) {
+      _columnCount = _columnCount - count;
+    }
+    return isDeleted;
   }
 
   /// Deletes rows from [Worksheet].
@@ -570,24 +574,28 @@ class Worksheet {
   /// [row] - index of a row to delete,
   /// rows start at index 1
   ///
-  /// [length] - optional (defaults to 1), the number of rows to delete
+  /// [count] - optional (defaults to 1), the number of rows to delete
   /// starting from [row]
   ///
   /// Returns Future `true` in case of success.
   ///
   /// Throws [GSheetsException].
-  Future<bool> deleteRow(int row, {int length = 1}) async {
+  Future<bool> deleteRow(int row, {int count = 1}) async {
     checkR(row);
-    return _deleteDimension(DIMEN_ROWS, row, length);
+    final isDeleted = await _deleteDimension(DIMEN_ROWS, row, count);
+    if (isDeleted) {
+      _rowCount = _rowCount - count;
+    }
+    return isDeleted;
   }
 
   Future<bool> _insertDimension(
     String dimen,
     int index,
-    int length,
+    int count,
     bool inheritFromBefore,
   ) async {
-    checkL(length);
+    except(count < 1, 'invalid count ($count)');
     await GSheets._batchUpdate(_client, spreadsheetId, [
       {
         'insertDimension': {
@@ -595,7 +603,7 @@ class Worksheet {
             'sheetId': id,
             "dimension": dimen,
             "startIndex": index - 1,
-            "endIndex": index - 1 + length,
+            "endIndex": index - 1 + count,
           },
           "inheritFromBefore": inheritFromBefore
         }
@@ -609,7 +617,7 @@ class Worksheet {
   /// [column] - index of a column to insert,
   /// columns start at index 1 (column A)
   ///
-  /// [length] - optional (defaults to 1), the number of columns to insert
+  /// [count] - optional (defaults to 1), the number of columns to insert
   ///
   /// [inheritFromBefore] - optional (defaults to `false`), if true, tells the
   /// API to give the new columns the same properties as the prior
@@ -622,11 +630,20 @@ class Worksheet {
   /// Throws [GSheetsException].
   Future<bool> insertColumn(
     int column, {
-    int length = 1,
+    int count = 1,
     bool inheritFromBefore = false,
   }) async {
     checkC(column);
-    return _insertDimension(DIMEN_COLUMNS, column, length, inheritFromBefore);
+    final isInserted = await _insertDimension(
+      DIMEN_COLUMNS,
+      column,
+      count,
+      inheritFromBefore,
+    );
+    if (isInserted) {
+      _columnCount = _columnCount + count;
+    }
+    return isInserted;
   }
 
   /// Inserts new rows to [Worksheet].
@@ -634,7 +651,7 @@ class Worksheet {
   /// [row] - index of a row to insert,
   /// rows start at index 1
   ///
-  /// [length] - optional (defaults to 1), the number of rows to insert
+  /// [count] - optional (defaults to 1), the number of rows to insert
   ///
   /// [inheritFromBefore] - optional (defaults to `false`), if true, tells the
   /// API to give the new rows the same properties as the prior
@@ -647,27 +664,36 @@ class Worksheet {
   /// Throws [GSheetsException].
   Future<bool> insertRow(
     int row, {
-    int length = 1,
+    int count = 1,
     bool inheritFromBefore = false,
   }) async {
     checkC(row);
-    return _insertDimension(DIMEN_ROWS, row, length, inheritFromBefore);
+    final isInserted = await _insertDimension(
+      DIMEN_ROWS,
+      row,
+      count,
+      inheritFromBefore,
+    );
+    if (isInserted) {
+      _rowCount = _rowCount + count;
+    }
+    return isInserted;
   }
 
   Future<bool> _moveDimension(
     String dimen,
     int from,
     int to,
-    int length,
+    int count,
   ) async {
     except(from == to, 'cannot move from $from to $to');
     except(from < 1, 'invalid from ($from)');
     except(to < 1, 'invalid to ($to)');
-    checkL(length);
+    except(count < 1, 'invalid count ($count)');
     // correct values for from > to
     final cFrom = from < to ? from : to;
-    final cTo = from < to ? to : from + length - 1;
-    final cLength = from < to ? length : from - to;
+    final cTo = from < to ? to : from + count - 1;
+    final cCount = from < to ? count : from - to;
     await GSheets._batchUpdate(_client, spreadsheetId, [
       {
         'moveDimension': {
@@ -675,7 +701,7 @@ class Worksheet {
             'sheetId': id,
             "dimension": dimen,
             "startIndex": cFrom - 1,
-            "endIndex": cFrom - 1 + cLength,
+            "endIndex": cFrom - 1 + cCount,
           },
           "destinationIndex": cTo
         }
@@ -689,10 +715,10 @@ class Worksheet {
   /// [from] - index of a first column to move,
   /// columns start at index 1 (column A)
   ///
-  /// [length] - optional (defaults to 1), the number of columns to move
+  /// [count] - optional (defaults to 1), the number of columns to move
   ///
   /// [to] - new index of a last column moved
-  /// must be in a range from [from] to [from] + [length]
+  /// must be in a range from [from] to [from] + [count]
   ///
   /// Returns Future `true` in case of success.
   ///
@@ -700,9 +726,9 @@ class Worksheet {
   Future<bool> moveColumn({
     @required int from,
     @required int to,
-    int length = 1,
+    int count = 1,
   }) async {
-    return _moveDimension(DIMEN_COLUMNS, from, to, length);
+    return _moveDimension(DIMEN_COLUMNS, from, to, count);
   }
 
   /// Moves rows.
@@ -710,10 +736,10 @@ class Worksheet {
   /// [from] - index of a first row to move,
   /// rows start at index 1
   ///
-  /// [length] - optional (defaults to 1), the number of rows to move
+  /// [count] - optional (defaults to 1), the number of rows to move
   ///
   /// [to] - new index of a last row moved
-  /// must be in a range from [from] to [from] + [length]
+  /// must be in a range from [from] to [from] + [count]
   ///
   /// Returns Future `true` in case of success.
   ///
@@ -721,9 +747,9 @@ class Worksheet {
   Future<bool> moveRow({
     @required int from,
     @required int to,
-    int length = 1,
+    int count = 1,
   }) async {
-    return _moveDimension(DIMEN_ROWS, from, to, length);
+    return _moveDimension(DIMEN_ROWS, from, to, count);
   }
 
   Future<List<String>> _get(String range, String dimension) async {
@@ -795,10 +821,13 @@ class Worksheet {
     int column,
     int row, [
     int length = -1,
+    int count = -1,
   ]) async {
     final expand = _expand(row + length - 1, column);
     String fromLabel = getColumnLetter(column);
-    String toLabel = getColumnLetter(columnCount);
+    String toLabel = count > 0
+        ? getColumnLetter(column + count - 1)
+        : getColumnLetter(columnCount);
     int to = length > 0 ? row + length - 1 : rowCount;
     await expand;
     return "'$_title'!$fromLabel${row}:$toLabel$to";
@@ -808,17 +837,19 @@ class Worksheet {
     int row,
     int column, [
     int length = -1,
+    int count = -1,
   ]) async {
     final expand = _expand(row, column + length - 1);
     String label = getColumnLetter(column);
     String toLabel = length > 0
         ? getColumnLetter(column + length - 1)
         : getColumnLetter(columnCount);
+    int toRow = count > 0 ? row + count - 1 : rowCount;
     await expand;
-    return "'$_title'!${label}${row}:$toLabel$rowCount";
+    return "'$_title'!${label}${row}:$toLabel$toRow";
   }
 
-  Future<void> _expand(int rows, int cols) async {
+  Future<bool> _expand(int rows, int cols) async {
     bool changed = false;
     if (_rowCount < rows) {
       _rowCount = rows;
@@ -829,7 +860,7 @@ class Worksheet {
       changed = true;
     }
     if (changed) {
-      await GSheets._batchUpdate(_client, spreadsheetId, [
+      final response = await GSheets._batchUpdate(_client, spreadsheetId, [
         {
           'updateSheetProperties': {
             'properties': {
@@ -843,7 +874,21 @@ class Worksheet {
           }
         }
       ]);
+      checkResponse(response);
     }
+    return changed;
+  }
+
+  /// Expands [Worksheet] adding new rows/columns at the end.
+  ///
+  /// [rows] - number of rows to add
+  ///
+  /// [columns] - number of columns to add
+  ///
+  Future<bool> add({int rows = 0, int columns = 0}) async {
+    except(rows < 0, 'invalid rows ($rows)');
+    except(columns < 0, 'invalid column ($columns)');
+    return _expand(_rowCount + rows, _columnCount + columns);
   }
 
   /// Clears the whole [Worksheet].
@@ -862,6 +907,8 @@ class Worksheet {
   /// will be cleared from (values before [fromRow] will remain uncleared),
   /// rows start at index 1
   ///
+  /// [count] - number of columns to clear
+  ///
   /// [length] - optional (defaults to -1), number of cells to clear in the
   /// column
   ///
@@ -872,9 +919,11 @@ class Worksheet {
     int column, {
     int fromRow = 1,
     int length = -1,
+    int count = 1,
   }) async {
     checkCR(column, fromRow);
-    return _clear(await _columnRange(column, fromRow, length));
+    except(count < 1, 'invalid count ($count)');
+    return _clear(await _allColumnsRange(column, fromRow, length, count));
   }
 
   /// Clears specified row.
@@ -886,6 +935,8 @@ class Worksheet {
   /// will be cleared from (values before [fromColumn] will remain uncleared),
   /// columns start at index 1 (column A)
   ///
+  /// [count] - number of rows to clear
+  ///
   /// [length] - optional (defaults to -1), number of cells to clear in the row
   ///
   /// Returns Future `true` in case of success.
@@ -895,18 +946,22 @@ class Worksheet {
     int row, {
     int fromColumn = 1,
     int length = -1,
+    int count = 1,
   }) async {
     checkCR(fromColumn, row);
-    return _clear(await _rowRange(row, fromColumn, length));
+    except(count < 1, 'invalid count ($count)');
+    return _clear(await _allRowsRange(row, fromColumn, length, count));
   }
 }
 
+/// Interactor for working with [Worksheet] cells as [String] values.
 class WorksheetAsValues {
   final Worksheet _ws;
   ValueMapper _map;
 
   WorksheetAsValues._(this._ws);
 
+  /// Mapper for [Worksheet]'s values.
   ValueMapper get map {
     if (_map == null) {
       _map = ValueMapper._(this);
@@ -915,6 +970,8 @@ class WorksheetAsValues {
   }
 
   /// Fetches specified column.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// [column] - index of a requested column,
   /// columns start at index 1 (column A)
@@ -941,6 +998,8 @@ class WorksheetAsValues {
 
   /// Fetches specified row.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// [row] - index of a requested row,
   /// rows start at index 1
   ///
@@ -965,6 +1024,8 @@ class WorksheetAsValues {
   }
 
   /// Fetches column by its name.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// [key] - name of a requested column
   /// The first row considered to be column names
@@ -991,6 +1052,8 @@ class WorksheetAsValues {
 
   /// Fetches row by its name.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// [key] - name of a requested row
   /// The column A considered to be row names
   ///
@@ -1016,6 +1079,8 @@ class WorksheetAsValues {
 
   /// Fetches last column.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// [fromRow] - optional (defaults to 1), index of a row that requested column
   /// starts from (values before [fromRow] will be skipped),
   /// rows start at index 1
@@ -1036,6 +1101,8 @@ class WorksheetAsValues {
 
   /// Fetches last row.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// [fromColumn] - optional (defaults to 1), index of a column that requested row
   /// starts from (values before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
@@ -1055,6 +1122,8 @@ class WorksheetAsValues {
   }
 
   /// Fetches all columns.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// [fromColumn] - optional (defaults to 1), index of a first returned column
   /// (columns before [fromColumn] will be skipped),
@@ -1082,6 +1151,8 @@ class WorksheetAsValues {
 
   /// Fetches all rows.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// [fromRow] - optional (defaults to 1), index of a first returned row
   /// (rows before [fromRow] will be skipped),
   /// rows start at index 1
@@ -1107,6 +1178,8 @@ class WorksheetAsValues {
   }
 
   /// Fetches cell's value.
+  ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
   ///
   /// [column] - column index of a requested cell's value,
   /// columns start at index 1 (column A)
@@ -1151,6 +1224,8 @@ class WorksheetAsValues {
   }
 
   /// Updates cell's value to [value].
+  ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
   ///
   /// [row] - row index to insert [value] to,
   /// rows start at index 1
@@ -1197,6 +1272,8 @@ class WorksheetAsValues {
 
   /// Returns index of a column with [key] value in [inRow].
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// [key] - value to look for
   ///
   /// [inRow] - optional (defaults to 1), row index in which [key] is looked for,
@@ -1232,6 +1309,8 @@ class WorksheetAsValues {
   }
 
   /// Returns index of a row with [key] value in [inColumn].
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// [key] - value to look for
   ///
@@ -1270,6 +1349,8 @@ class WorksheetAsValues {
 
   /// Updates column values with [values].
   ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
+  ///
   /// [values] - values to insert (not null nor empty)
   ///
   /// [column] - column index to insert [values] to,
@@ -1298,6 +1379,8 @@ class WorksheetAsValues {
 
   /// Updates column by its name values with [values].
   ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
+  ///
   /// [values] - values to insert (not null nor empty)
   ///
   /// [key] - name of a column to insert [values] to
@@ -1321,6 +1404,8 @@ class WorksheetAsValues {
 
   /// Appends column.
   ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
+  ///
   /// The column index that [values] will be inserted to is the column index
   /// after last cell in the first row
   ///
@@ -1342,6 +1427,8 @@ class WorksheetAsValues {
   }
 
   /// Updates row values with [values].
+  ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
   ///
   /// [values] - values to insert (not null nor empty)
   ///
@@ -1371,6 +1458,8 @@ class WorksheetAsValues {
 
   /// Updates row by its name values with [values].
   ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
+  ///
   /// [values] - values to insert (not null nor empty)
   ///
   /// [key] - name of a row to insert [values] to
@@ -1394,6 +1483,8 @@ class WorksheetAsValues {
 
   /// Appends row.
   ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
+  ///
   /// The row index that [values] will be inserted to is the row index after
   /// last cell in the column A
   ///
@@ -1415,12 +1506,15 @@ class WorksheetAsValues {
   }
 }
 
+/// Mapper for [Worksheet]'s values.
 class ValueMapper {
   final WorksheetAsValues _values;
 
   ValueMapper._(this._values);
 
   /// Fetches specified column, maps it to other column and returns map.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// [column] - index of a requested column (values of returned map),
   /// columns start at index 1 (column A)
@@ -1463,6 +1557,8 @@ class ValueMapper {
 
   /// Fetches specified row, maps it to other row and returns map.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// [row] - index of a requested row (values of returned map),
   /// rows start at index 1
   ///
@@ -1504,6 +1600,8 @@ class ValueMapper {
 
   /// Fetches column by its name, maps it to other column and returns map.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// The first row considered to be column names
   ///
   /// [key] - name of a requested column (values of returned map)
@@ -1543,6 +1641,8 @@ class ValueMapper {
   }
 
   /// Fetches row by its name, maps it to other row, and returns map.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// The column A considered to be row names
   ///
@@ -1584,6 +1684,8 @@ class ValueMapper {
 
   /// Fetches last column, maps it to other column and returns map.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// [fromRow] - optional (defaults to 1), index of a row that requested column
   /// starts from (values before [fromRow] will be skipped),
   /// rows start at index 1
@@ -1610,6 +1712,8 @@ class ValueMapper {
 
   /// Fetches last row, maps it to other row and returns map.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// [fromColumn] - optional (defaults to 1), index of a column that requested row
   /// starts from (values before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
@@ -1635,6 +1739,8 @@ class ValueMapper {
   }
 
   /// Updates column values with values from [map].
+  ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
   ///
   /// [map] - map containing values to insert (not null nor empty)
   ///
@@ -1683,28 +1789,35 @@ class ValueMapper {
       }
     }
 
-    final insertion = _values.insertColumn(
-      column,
-      newColumn,
-      fromRow: fromRow,
-    );
-
     if (appendMissing && columnMap.isNotEmpty) {
       final newKeys = <String>[];
       for (MapEntry entry in columnMap.entries) {
         newKeys.add(entry.key);
         newColumn.add(entry.value);
       }
-      await _values.insertColumn(
+      final newKeysInsertion = _values.insertColumn(
         mapTo,
         newKeys,
         fromRow: fromRow + rows.length,
       );
+      final newColumnInsertion = _values.insertColumn(
+        column,
+        newColumn,
+        fromRow: fromRow,
+      );
+      await newKeysInsertion;
+      return newColumnInsertion;
     }
-    return insertion;
+    return _values.insertColumn(
+      column,
+      newColumn,
+      fromRow: fromRow,
+    );
   }
 
   /// Updates column values with values from [map] by column names.
+  ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
   ///
   /// The first row considered to be column names
   ///
@@ -1753,6 +1866,8 @@ class ValueMapper {
 
   /// Appends column with values from [map].
   ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
+  ///
   /// [map] - map containing values to insert (not null nor empty)
   ///
   /// [fromRow] - optional (defaults to 1), row index for the first inserted value,
@@ -1787,6 +1902,8 @@ class ValueMapper {
   }
 
   /// Updates row values with values from [map].
+  ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
   ///
   /// [map] - map containing values to insert (not null nor empty)
   ///
@@ -1836,29 +1953,36 @@ class ValueMapper {
       }
     }
 
-    final insertion = _values.insertRow(
-      row,
-      newRow,
-      fromColumn: fromColumn,
-    );
-
     if (appendMissing && rowMap.isNotEmpty) {
       final newKeys = <String>[];
       for (MapEntry entry in rowMap.entries) {
         newKeys.add(entry.key);
         newRow.add(entry.value);
       }
-      await _values.insertRow(
+      final newKeysInsertion = _values.insertRow(
         mapTo,
         newKeys,
         fromColumn: fromColumn + columns.length,
       );
+      final newRowInsertion = _values.insertRow(
+        row,
+        newRow,
+        fromColumn: fromColumn,
+      );
+      await newKeysInsertion;
+      return newRowInsertion;
     }
 
-    return insertion;
+    return _values.insertRow(
+      row,
+      newRow,
+      fromColumn: fromColumn,
+    );
   }
 
   /// Updates row values with values from [map] by column names.
+  ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
   ///
   /// The column A considered to be row names
   ///
@@ -1906,6 +2030,8 @@ class ValueMapper {
   }
 
   /// Appends row with values from [map].
+  ///
+  /// Expands current sheet's size if inserting range is out of sheet's bounds.
   ///
   /// [map] - map containing values to insert (not null nor empty)
   ///
@@ -1997,12 +2123,14 @@ class Cell implements Comparable {
   }
 }
 
+/// Interactor for working with [Worksheet] cells as [Cell] objects.
 class WorksheetAsCells {
   final Worksheet _ws;
   CellsMapper _map;
 
   WorksheetAsCells._(this._ws);
 
+  /// Mapper for [Worksheet]'s cells.
   CellsMapper get map {
     if (_map == null) {
       _map = CellsMapper._(this);
@@ -2011,6 +2139,8 @@ class WorksheetAsCells {
   }
 
   /// Fetches specified column.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// [column] - index of a requested column,
   /// columns start at index 1 (column A)
@@ -2042,6 +2172,8 @@ class WorksheetAsCells {
   }
 
   /// Fetches specified row.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// [row] - index of a requested row,
   /// rows start at index 1
@@ -2077,6 +2209,8 @@ class WorksheetAsCells {
 
   /// Fetches column by its name.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// [key] - name of a requested column
   /// The first row considered to be column names
   ///
@@ -2101,6 +2235,8 @@ class WorksheetAsCells {
   }
 
   /// Fetches row by its name.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// [key] - name of a requested row
   /// The column A considered to be row names
@@ -2127,6 +2263,8 @@ class WorksheetAsCells {
 
   /// Fetches last column.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// [fromRow] - optional (defaults to 1), index of a row that requested column
   /// starts from (cells before [fromRow] will be skipped),
   /// rows start at index 1
@@ -2147,6 +2285,8 @@ class WorksheetAsCells {
 
   /// Fetches last row.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// [fromColumn] - optional (defaults to 1), index of a column that requested row
   /// starts from (cells before [fromColumn] will be skipped),
   /// columns start at index 1 (column A)
@@ -2166,6 +2306,8 @@ class WorksheetAsCells {
   }
 
   /// Fetches all columns.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// [fromColumn] - optional (defaults to 1), index of a first returned column
   /// (columns before [fromColumn] will be skipped),
@@ -2207,6 +2349,8 @@ class WorksheetAsCells {
   }
 
   /// Fetches all rows.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// [fromRow] - optional (defaults to 1), index of a first returned row
   /// (rows before [fromRow] will be skipped),
@@ -2272,6 +2416,8 @@ class WorksheetAsCells {
   }
 
   /// Fetches cell.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// [column] - column index of a requested cell,
   /// columns start at index 1 (column A)
@@ -2342,12 +2488,15 @@ class WorksheetAsCells {
   }
 }
 
+/// Mapper for [Worksheet]'s cells.
 class CellsMapper {
   final WorksheetAsCells _cells;
 
   CellsMapper._(this._cells);
 
   /// Fetches specified column, maps it to other column and returns map.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// [column] - index of a requested column (values of returned map),
   /// columns start at index 1 (column A)
@@ -2391,6 +2540,8 @@ class CellsMapper {
 
   /// Fetches specified row, maps it to other row and returns map.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// [row] - index of a requested row (values of returned map),
   /// rows start at index 1
   ///
@@ -2433,6 +2584,8 @@ class CellsMapper {
 
   /// Fetches column by its name, maps it to other column and returns map.
   ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
   /// The first row considered to be column names
   ///
   /// [key] - name of a requested column (values of returned map)
@@ -2472,6 +2625,8 @@ class CellsMapper {
   }
 
   /// Fetches row by its name, maps it to other row, and returns map.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
   ///
   /// The column A considered to be row names
   ///
