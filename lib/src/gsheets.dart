@@ -879,11 +879,11 @@ class Worksheet {
     return changed;
   }
 
-  /// Expands [Worksheet] adding new rows/columns at the end.
+  /// Expands [Worksheet] by adding new rows/columns to the end of the sheet.
   ///
-  /// [rows] - number of rows to add
+  /// [rows] - optional (defaults to 0), number of rows to add
   ///
-  /// [columns] - number of columns to add
+  /// [columns] - optional (defaults to 0), number of columns to add
   ///
   /// Returns Future `true` if any rows/columns were added.
   ///
@@ -1092,6 +1092,7 @@ class WorksheetAsValues {
   /// if length is `-1`, all values starting from [fromRow] will be returned
   ///
   /// Returns last column as Future [List] of [String].
+  /// Returns Future `null` if there are no columns.
   ///
   /// Throws [GSheetsException].
   Future<List<String>> lastColumn({
@@ -1099,6 +1100,7 @@ class WorksheetAsValues {
     int length = -1,
   }) async {
     final column = maxLength(await this.allRows());
+    if (column < 1) return null;
     return this.column(column, fromRow: fromRow, length: length);
   }
 
@@ -1114,6 +1116,7 @@ class WorksheetAsValues {
   /// if length is `-1`, all values starting from [fromColumn] will be returned
   ///
   /// Returns last row as Future [List] of [String].
+  /// Returns Future `null` if there are no rows.
   ///
   /// Throws [GSheetsException].
   Future<List<String>> lastRow({
@@ -1121,6 +1124,7 @@ class WorksheetAsValues {
     int length = -1,
   }) async {
     final row = maxLength(await this.allColumns());
+    if (row < 1) return null;
     return this.row(row, fromColumn: fromColumn, length: length);
   }
 
@@ -1701,6 +1705,7 @@ class ValueMapper {
   /// columns start at index 1 (column A)
   ///
   /// Returns column as Future [Map] of [String] to [String].
+  /// Returns Future `null` if there are less than 2 columns.
   ///
   /// Throws [GSheetsException].
   Future<Map<String, String>> lastColumn({
@@ -1709,7 +1714,8 @@ class ValueMapper {
     int mapTo = 1,
   }) async {
     final column = maxLength(await _values.allRows());
-    if (column < 1) return null;
+    if (column < 2) return null;
+    except(mapTo > column, 'invalid mapTo ($mapTo) - out of table bounds');
     return this.column(column, fromRow: fromRow, length: length, mapTo: mapTo);
   }
 
@@ -1729,6 +1735,7 @@ class ValueMapper {
   /// rows start at index 1
   ///
   /// Returns row as Future [Map] of [String] to [String].
+  /// Returns Future `null` if there are less than 2 rows.
   ///
   /// Throws [GSheetsException].
   Future<Map<String, String>> lastRow({
@@ -1737,7 +1744,8 @@ class ValueMapper {
     int mapTo = 1,
   }) async {
     final row = maxLength(await _values.allColumns());
-    if (row < 1) return null;
+    if (row < 2) return null;
+    except(mapTo > row, 'invalid mapTo ($mapTo) - out of table bounds');
     return this.row(row, fromColumn: fromColumn, length: length, mapTo: mapTo);
   }
 
@@ -2276,6 +2284,7 @@ class WorksheetAsCells {
   /// if length is `-1`, all cells starting from [fromRow] will be returned
   ///
   /// Returns last column as Future [List] of [Cell].
+  /// Returns Future `null` if there are no columns.
   ///
   /// Throws [GSheetsException].
   Future<List<Cell>> lastColumn({
@@ -2283,6 +2292,7 @@ class WorksheetAsCells {
     int length = -1,
   }) async {
     final column = maxLength(await _ws.values.allRows());
+    if (column < 1) return null;
     return this.column(column, fromRow: fromRow, length: length);
   }
 
@@ -2298,6 +2308,7 @@ class WorksheetAsCells {
   /// if length is `-1`, all cells starting from [fromColumn] will be returned
   ///
   /// Returns last row as Future [List] of [Cell].
+  /// Returns Future `null` if there are no rows.
   ///
   /// Throws [GSheetsException].
   Future<List<Cell>> lastRow({
@@ -2305,6 +2316,7 @@ class WorksheetAsCells {
     int length = -1,
   }) async {
     final row = maxLength(await _ws.values.allColumns());
+    if (row < 1) return null;
     return this.row(row, fromColumn: fromColumn, length: length);
   }
 
@@ -2667,6 +2679,94 @@ class CellsMapper {
       length: length,
       mapTo: await mapToIndex,
     );
+  }
+
+  /// Fetches last column, maps it to other column and returns map.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
+  /// [fromRow] - optional (defaults to 1), index of a row that requested column
+  /// starts from (cells before [fromRow] will be skipped),
+  /// rows start at index 1
+  ///
+  /// [length] - optional (defaults to -1), the length of a requested column
+  /// if length is `-1`, all cells starting from [fromRow] will be returned
+  ///
+  /// [mapTo] - optional (defaults to 1), index of a column to map cells to
+  /// (keys of returned map),
+  /// columns start at index 1 (column A)
+  ///
+  /// Returns column as Future [Map] of [String] to [Cell].
+  /// Returns Future `null` if there are less than 2 columns.
+  ///
+  /// Throws [GSheetsException].
+  Future<Map<String, Cell>> lastColumn({
+    int fromRow = 1,
+    int mapTo = 1,
+    int length = -1,
+  }) async {
+    final column = maxLength(await _cells._ws.values.allRows());
+    if (column < 2) return null;
+    checkM(column, mapTo);
+    except(mapTo > column, 'invalid mapTo ($mapTo) - out of table bounds');
+    final values = _cells.column(
+      column,
+      fromRow: fromRow,
+      length: length,
+    );
+    final keys = _cells._ws.values.column(
+      mapTo,
+      fromRow: fromRow,
+      length: length,
+    );
+    final map = <String, Cell>{};
+    mapKeysToValues(await keys, await values, map, null,
+        (index) => Cell._(_cells._ws, fromRow + index, column, ''));
+    return Map.unmodifiable(map);
+  }
+
+  /// Fetches last row, maps it to other row and returns map.
+  ///
+  /// Expands current sheet's size if requested range is out of sheet's bounds.
+  ///
+  /// [fromColumn] - optional (defaults to 1), index of a column that requested row
+  /// starts from (cells before [fromColumn] will be skipped),
+  /// columns start at index 1 (column A)
+  ///
+  /// [length] - optional (defaults to -1), the length of a requested row
+  /// if length is `-1`, all cells starting from [fromColumn] will be returned
+  ///
+  /// [mapTo] - optional (defaults to 1), index of a row to map cells to
+  /// (keys of returned map),
+  /// rows start at index 1
+  ///
+  /// Returns row as Future [Map] of [String] to [Cell].
+  /// Returns Future `null` if there are less than 2 rows.
+  ///
+  /// Throws [GSheetsException].
+  Future<Map<String, Cell>> lastRow({
+    int fromColumn = 1,
+    int mapTo = 1,
+    int length = -1,
+  }) async {
+    final row = maxLength(await _cells._ws.values.allColumns());
+    if (row < 2) return null;
+    checkM(row, mapTo);
+    except(mapTo > row, 'invalid mapTo ($mapTo) - out of table bounds');
+    final values = _cells.row(
+      row,
+      fromColumn: fromColumn,
+      length: length,
+    );
+    final keys = _cells._ws.values.row(
+      mapTo,
+      fromColumn: fromColumn,
+      length: length,
+    );
+    final map = <String, Cell>{};
+    mapKeysToValues(await keys, await values, map, null,
+        (index) => Cell._(_cells._ws, row, fromColumn + index, ''));
+    return Map.unmodifiable(map);
   }
 
   /// Updates cells with values of [map].
