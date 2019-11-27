@@ -71,7 +71,11 @@ class GSheets {
   /// Throws Exception if [GSheets]'s scopes does not include SpreadsheetsScope.
   /// Throws GSheetsException if does not have permission.
   Future<Spreadsheet> spreadsheet(String spreadsheetId) async {
-    final client = await this.client;
+    final client = await this.client.catchError((_) {
+      // retry once on error
+      _client = null;
+      return this.client;
+    });
     final response = await client.get('$_sheetsEndpoint$spreadsheetId');
     checkResponse(response);
     final sheets = (jsonDecode(response.body)['sheets'] as List)
@@ -459,6 +463,7 @@ class Worksheet {
   /// Current index of of the sheet.
   int get index => _index;
 
+  /// Current title of of the sheet.
   String get title => _title;
 
   /// Interactor for working with [Worksheet] cells as [String] values.
@@ -2104,13 +2109,15 @@ class Cell implements Comparable {
   ///
   /// Throws [GSheetsException].
   Future<bool> post(String value) async {
-    this.value = value;
-    final range = "'$worksheetTitle'!$label";
-    return _ws._update(
+    final posted = await _ws._update(
       values: [value ?? ''],
-      range: range,
+      range: "'$worksheetTitle'!$label",
       majorDimension: DIMEN_COLUMNS,
     );
+    if (posted) {
+      this.value = value;
+    }
+    return posted;
   }
 
   /// Refreshes value of a cell.

@@ -6,7 +6,11 @@ Manage your spreadsheets with gsheets in Dart.
 
 Basic usage see [example][example].
 
-More usage examples are coming. See docs for now.
+## Upcoming
+
+0.2._ - faster performance for methods that include mapping, use keys, fetch or append last row/column.
+
+0.3._ - will be added class Table that holds mutable rows and columns and has a sync method.
 
 ## Features and bugs
 

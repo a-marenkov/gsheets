@@ -1,3 +1,8 @@
+## 0.1.0
+
+- Initial release;
+- Minor fixes.
+
 ## 0.1.0-rc.1
 
 - Added `lastRow` and `lastColumn` methods to `CellsMapper`;
