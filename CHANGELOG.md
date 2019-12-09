@@ -1,3 +1,7 @@
+## 0.1.1
+
+- Lowered version of meta package to make gsheets compatible with flutter stable branch.
+
 ## 0.1.0
 
 - Initial release;

@@ -2,7 +2,8 @@ name: gsheets
 description:
   A library for working with Google Sheets API v4.
   Manage your spreadsheets with gsheets in Dart.
-version: 0.1.0
+version: 0.1.1
+author: Alexander Marenkov <dev.a.marenkov@gmail.com>
 homepage: https://github.com/a-marenkov/gsheets
 repository: https://github.com/a-marenkov/gsheets.git
 issue_tracker: https://github.com/a-marenkov/gsheets/issues
@@ -14,7 +15,7 @@ dependencies:
   googleapis: ^0.54.0
   googleapis_auth: ^0.2.10
   http: ^0.12.0+2
-  meta: ^1.1.8
+  meta: ^1.1.7
 
 dev_dependencies:
   pedantic: ^1.8.0+1
