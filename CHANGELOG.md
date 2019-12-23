@@ -1,3 +1,7 @@
+## 0.1.1+1
+
+- Refactoring according to dart analysis.
+
 ## 0.1.1
 
 - Lowered version of meta package to make gsheets compatible with flutter stable branch.

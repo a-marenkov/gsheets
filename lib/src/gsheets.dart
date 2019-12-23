@@ -23,6 +23,7 @@ class GSheetsException implements Exception {
 
   GSheetsException(this.cause);
 
+  @override
   String toString() => 'GSheetsException: $cause';
 }
 
@@ -58,9 +59,7 @@ class GSheets {
   /// Returns Future [AutoRefreshingAuthClient] - autorefreshing,
   /// authenticated HTTP client.
   Future<AutoRefreshingAuthClient> get client {
-    if (_client == null) {
-      _client = clientViaServiceAccount(_credentials, _scopes);
-    }
+    _client ??= clientViaServiceAccount(_credentials, _scopes);
     return _client;
   }
 
@@ -468,17 +467,13 @@ class Worksheet {
 
   /// Interactor for working with [Worksheet] cells as [String] values.
   WorksheetAsValues get values {
-    if (_values == null) {
-      _values = WorksheetAsValues._(this);
-    }
+    _values ??= WorksheetAsValues._(this);
     return _values;
   }
 
   /// Interactor for working with [Worksheet] cells as [Cell] objects.
   WorksheetAsCells get cells {
-    if (_cells == null) {
-      _cells = WorksheetAsCells._(this);
-    }
+    _cells ??= WorksheetAsCells._(this);
     return _cells;
   }
 
@@ -505,11 +500,11 @@ class Worksheet {
     );
   }
 
-  _incrementIndex(int index) {
+  void _incrementIndex(int index) {
     if (_index > index) ++_index;
   }
 
-  _decrementIndex(int index) {
+  void _decrementIndex(int index) {
     if (_index > index) --_index;
   }
 
@@ -544,9 +539,9 @@ class Worksheet {
         'deleteDimension': {
           'range': {
             'sheetId': id,
-            "dimension": dimen,
-            "startIndex": index - 1,
-            "endIndex": index - 1 + count,
+            'dimension': dimen,
+            'startIndex': index - 1,
+            'endIndex': index - 1 + count,
           },
         }
       }
@@ -606,11 +601,11 @@ class Worksheet {
         'insertDimension': {
           'range': {
             'sheetId': id,
-            "dimension": dimen,
-            "startIndex": index - 1,
-            "endIndex": index - 1 + count,
+            'dimension': dimen,
+            'startIndex': index - 1,
+            'endIndex': index - 1 + count,
           },
-          "inheritFromBefore": inheritFromBefore
+          'inheritFromBefore': inheritFromBefore
         }
       }
     ]);
@@ -704,11 +699,11 @@ class Worksheet {
         'moveDimension': {
           'source': {
             'sheetId': id,
-            "dimension": dimen,
-            "startIndex": cFrom - 1,
-            "endIndex": cFrom - 1 + cCount,
+            'dimension': dimen,
+            'startIndex': cFrom - 1,
+            'endIndex': cFrom - 1 + cCount,
           },
-          "destinationIndex": cTo
+          'destinationIndex': cTo
         }
       }
     ]);
@@ -788,9 +783,9 @@ class Worksheet {
       '$_sheetsEndpoint$spreadsheetId/values/$range?valueInputOption=USER_ENTERED',
       body: jsonEncode(
         {
-          "range": range,
-          "majorDimension": majorDimension,
-          "values": [values],
+          'range': range,
+          'majorDimension': majorDimension,
+          'values': [values],
         },
       ),
     );
@@ -808,16 +803,16 @@ class Worksheet {
 
   Future<String> _rowRange(int row, int column, [int length = -1]) async {
     final expand = _expand(row, column + length - 1);
-    String label = getColumnLetter(column);
-    String labelTo = length > 0 ? getColumnLetter(column + length - 1) : '';
+    final label = getColumnLetter(column);
+    final labelTo = length > 0 ? getColumnLetter(column + length - 1) : '';
     await expand;
     return "'$_title'!${label}${row}:${labelTo}${row}";
   }
 
   Future<String> _columnRange(int column, int row, [int length = -1]) async {
     final expand = _expand(row + length - 1, column);
-    String label = getColumnLetter(column);
-    String to = length > 0 ? '${row + length - 1}' : '';
+    final label = getColumnLetter(column);
+    final to = length > 0 ? '${row + length - 1}' : '';
     await expand;
     return "'$_title'!$label${row}:$label$to";
   }
@@ -829,11 +824,11 @@ class Worksheet {
     int count = -1,
   ]) async {
     final expand = _expand(row + length - 1, column);
-    String fromLabel = getColumnLetter(column);
-    String toLabel = count > 0
+    final fromLabel = getColumnLetter(column);
+    final toLabel = count > 0
         ? getColumnLetter(column + count - 1)
         : getColumnLetter(columnCount);
-    int to = length > 0 ? row + length - 1 : rowCount;
+    final to = length > 0 ? row + length - 1 : rowCount;
     await expand;
     return "'$_title'!$fromLabel${row}:$toLabel$to";
   }
@@ -845,17 +840,17 @@ class Worksheet {
     int count = -1,
   ]) async {
     final expand = _expand(row, column + length - 1);
-    String label = getColumnLetter(column);
-    String toLabel = length > 0
+    final label = getColumnLetter(column);
+    final toLabel = length > 0
         ? getColumnLetter(column + length - 1)
         : getColumnLetter(columnCount);
-    int toRow = count > 0 ? row + count - 1 : rowCount;
+    final toRow = count > 0 ? row + count - 1 : rowCount;
     await expand;
     return "'$_title'!${label}${row}:$toLabel$toRow";
   }
 
   Future<bool> _expand(int rows, int cols) async {
-    bool changed = false;
+    var changed = false;
     if (_rowCount < rows) {
       _rowCount = rows;
       changed = true;
@@ -971,9 +966,7 @@ class WorksheetAsValues {
 
   /// Mapper for [Worksheet]'s values.
   ValueMapper get map {
-    if (_map == null) {
-      _map = ValueMapper._(this);
-    }
+    _map ??= ValueMapper._(this);
     return _map;
   }
 
@@ -1104,7 +1097,7 @@ class WorksheetAsValues {
     int fromRow = 1,
     int length = -1,
   }) async {
-    final column = maxLength(await this.allRows());
+    final column = maxLength(await allRows());
     if (column < 1) return null;
     return this.column(column, fromRow: fromRow, length: length);
   }
@@ -1128,7 +1121,7 @@ class WorksheetAsValues {
     int fromColumn = 1,
     int length = -1,
   }) async {
-    final row = maxLength(await this.allColumns());
+    final row = maxLength(await allColumns());
     if (row < 1) return null;
     return this.row(row, fromColumn: fromColumn, length: length);
   }
@@ -1303,8 +1296,8 @@ class WorksheetAsValues {
     int inRow = 1,
   }) async {
     except(isNullOrEmpty(key), 'invalid key ($key)');
-    final columnKeys = await this.row(inRow);
-    int column = columnKeys.indexOf(key) + 1;
+    final columnKeys = await row(inRow);
+    var column = columnKeys.indexOf(key) + 1;
     if (column < 1) {
       column = -1;
       if (add) {
@@ -1342,8 +1335,8 @@ class WorksheetAsValues {
     inColumn = 1,
   }) async {
     except(isNullOrEmpty(key), 'invalid key ($key)');
-    final rowKeys = await this.column(inColumn);
-    int row = rowKeys.indexOf(key) + 1;
+    final rowKeys = await column(inColumn);
+    var row = rowKeys.indexOf(key) + 1;
     if (row < 1) {
       row = -1;
       if (add) {
@@ -1434,7 +1427,7 @@ class WorksheetAsValues {
     List<String> values, {
     int fromRow = 1,
   }) async {
-    final column = maxLength(await this.allRows()) + 1;
+    final column = maxLength(await allRows()) + 1;
     return insertColumn(column, values, fromRow: fromRow);
   }
 
@@ -1489,7 +1482,7 @@ class WorksheetAsValues {
     List<String> values, {
     int fromColumn = 2,
   }) async {
-    int row = await rowIndexOf(key, add: true);
+    var row = await rowIndexOf(key, add: true);
     return insertRow(row, values, fromColumn: fromColumn);
   }
 
@@ -1513,7 +1506,7 @@ class WorksheetAsValues {
     List<String> values, {
     int fromColumn = 1,
   }) async {
-    final row = maxLength(await this.allColumns()) + 1;
+    final row = maxLength(await allColumns()) + 1;
     return insertRow(row, values, fromColumn: fromColumn);
   }
 }
@@ -1791,23 +1784,23 @@ class ValueMapper {
     checkCR(column, fromRow);
     checkM(column, mapTo);
     checkV(map);
-    final columnMap = Map()..addAll(map);
+    final columnMap = Map.from(map);
     final rows = await _values.column(mapTo, fromRow: fromRow);
 
     final newColumn = <String>[];
     if (overwrite) {
-      for (String row in rows) {
+      for (var row in rows) {
         newColumn.add(columnMap.remove(row) ?? '');
       }
     } else {
-      for (String row in rows) {
+      for (var row in rows) {
         newColumn.add(columnMap.remove(row));
       }
     }
 
     if (appendMissing && columnMap.isNotEmpty) {
       final newKeys = <String>[];
-      for (MapEntry entry in columnMap.entries) {
+      for (var entry in columnMap.entries) {
         newKeys.add(entry.key);
         newColumn.add(entry.value);
       }
@@ -1955,23 +1948,24 @@ class ValueMapper {
     checkCR(fromColumn, row);
     checkM(row, mapTo);
     checkV(map);
-    final rowMap = Map()..addAll(map);
+
+    final rowMap = Map.from(map);
     final columns = await _values.row(mapTo, fromColumn: fromColumn);
 
     final newRow = <String>[];
     if (overwrite) {
-      for (String column in columns) {
+      for (var column in columns) {
         newRow.add(rowMap.remove(column) ?? '');
       }
     } else {
-      for (String column in columns) {
+      for (var column in columns) {
         newRow.add(rowMap.remove(column));
       }
     }
 
     if (appendMissing && rowMap.isNotEmpty) {
       final newKeys = <String>[];
-      for (MapEntry entry in rowMap.entries) {
+      for (var entry in rowMap.entries) {
         newKeys.add(entry.key);
         newRow.add(entry.value);
       }
@@ -2099,9 +2093,9 @@ class Cell implements Comparable {
   );
 
   /// Returns position of a cell in A1 notation.
-  get label => '${getColumnLetter(columnIndex)}${rowIndex}';
+  String get label => '${getColumnLetter(columnIndex)}${rowIndex}';
 
-  get worksheetTitle => _ws._title;
+  String get worksheetTitle => _ws._title;
 
   /// Updates value of a cell.
   ///
@@ -2150,9 +2144,7 @@ class WorksheetAsCells {
 
   /// Mapper for [Worksheet]'s cells.
   CellsMapper get map {
-    if (_map == null) {
-      _map = CellsMapper._(this);
-    }
+    _map ??= CellsMapper._(this);
     return _map;
   }
 
@@ -2178,7 +2170,7 @@ class WorksheetAsCells {
     int fromRow = 1,
     int length = -1,
   }) async {
-    int index = fromRow;
+    var index = fromRow;
     return List.unmodifiable(
         (await _ws.values.column(column, fromRow: fromRow, length: length))
             .map((value) => Cell._(
@@ -2211,7 +2203,7 @@ class WorksheetAsCells {
     int fromColumn = 1,
     int length = -1,
   }) async {
-    int index = fromColumn;
+    var index = fromColumn;
     return List.unmodifiable((await _ws.values.row(
       row,
       fromColumn: fromColumn,
@@ -2351,14 +2343,14 @@ class WorksheetAsCells {
     int length = -1,
   }) async {
     final list = <List<Cell>>[];
-    int colIndex = fromColumn;
+    var colIndex = fromColumn;
     final lists = await _ws.values.allColumns(
       fromColumn: fromColumn,
       fromRow: fromRow,
       length: length,
     );
     lists.forEach((sublist) {
-      int rowIndex = fromRow;
+      var rowIndex = fromRow;
       list.add(List.unmodifiable(sublist.map((value) => Cell._(
             _ws,
             rowIndex++,
@@ -2394,14 +2386,14 @@ class WorksheetAsCells {
     int length = -1,
   }) async {
     final list = <List<Cell>>[];
-    int rowIndex = fromRow;
+    var rowIndex = fromRow;
     final lists = await _ws.values.allRows(
       fromRow: fromRow,
       fromColumn: fromColumn,
       length: length,
     );
     lists.forEach((sublist) {
-      int colIndex = fromColumn;
+      var colIndex = fromColumn;
       list.add(List.unmodifiable(sublist.map((value) => Cell._(
             _ws,
             rowIndex,
@@ -2423,10 +2415,10 @@ class WorksheetAsCells {
   Future<List<Cell>> findByValue(String value) async {
     final cells = <Cell>[];
     final rows = await _ws.values.allRows();
-    int rowIndex = 1;
-    for (List<String> row in rows) {
-      int colIndex = 1;
-      for (String val in row) {
+    var rowIndex = 1;
+    for (var row in rows) {
+      var colIndex = 1;
+      for (var val in row) {
         if (val == value) {
           cells.add(Cell._(_ws, rowIndex, colIndex, val));
         }
