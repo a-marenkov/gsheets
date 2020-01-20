@@ -23,7 +23,7 @@ void main() async {
   final gsheets = GSheets(_credentials);
   // fetch spreadsheet by its id
   final ss = await gsheets.spreadsheet(_spreadsheetId);
-  // get worksheet by title
+  // get worksheet by its title
   var sheet = await ss.worksheetByTitle('example');
   // create worksheet if it does not exist yet
   sheet ??= await ss.addWorksheet('example');

@@ -1,3 +1,11 @@
+## 0.2.0-dev.1
+
+- Increased performance of methods that include mapping, use keys, fetch or append last row/column. 
+- Decreased Google API calls for methods that include mapping, use keys, fetch or append last row/column.
+- Added `inRange` parameter to methods that fetch or append last row/column.
+- **Breaking change**: parameter `user` of `Spreadsheet`s method `share` was made positional. 
+- **Breaking change**: `Cell`'s fields `rowIndex` and `columnIndex` were renamed to `row` and `column`. 
+
 ## 0.1.1+1
 
 - Refactoring according to dart analysis.
