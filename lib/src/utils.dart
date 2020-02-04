@@ -28,6 +28,10 @@ void check(String name, int value) {
   if ((value ?? -1) < 1) throw GSheetsException('invalid $name ($value)');
 }
 
+void checkKey(String key) {
+  if (isNullOrEmpty(key)) throw GSheetsException('invalid key ($key)');
+}
+
 void checkValues(dynamic values) {
   if (isNullOrEmpty(values)) throw GSheetsException('invalid values ($values)');
 }
@@ -71,17 +75,30 @@ List<String> extractSublist(
   int from = 0,
   int length = -1,
 }) {
-  if (from == 0 && length == -1) return list;
-  final to = length < 1 ? list.length : min(list.length, from + length);
-  return list.sublist(min(list.length, from), to);
+  if (from == 0 && length < 1) return list;
+  final start = min(from, list.length);
+  final end = length < 1 ? list.length : min(from + length, list.length);
+  return list.sublist(start, end);
 }
 
-T get<T>(List<T> list, {int at = 0, T or}) =>
-    (list?.length ?? 0) > at ? list[at] : or;
+T get<T>(List<T> list, {int at = 0, T or}) {
+  return (list?.length ?? 0) > at ? list[at] : or;
+}
 
-int whereFirst(List<List<String>> list, String key) =>
-    list.indexWhere((it) => get(it) == key);
+String getOrEmpty(List<String> list, [int at = 0]) {
+  return get(list, at: at, or: '');
+}
 
-String getOrEmpty(List<String> list, [int at = 0]) => get(list, at: at, or: '');
+int whereFirst(List<List<String>> lists, String key) {
+  return lists.indexWhere((list) => get<String>(list) == key);
+}
+
+int maxLength(List<List> lists, [int atLeast = 0]) {
+  var length = atLeast;
+  for (var list in lists) {
+    if (list.length > length) length = list.length;
+  }
+  return length;
+}
 
 bool isNullOrEmpty(dynamic data) => data == null || data.isEmpty;
