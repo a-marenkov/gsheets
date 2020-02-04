@@ -8,8 +8,6 @@ Basic usage see [example][example].
 
 ## Upcoming
 
-**0.2._** - faster performance and fewer calls to Google API for methods that include mapping, use keys, fetch or append last row/column (**check out [0.2.0-dev.1][upcoming] version**).
-
 **0.3._** - will be added class Table that holds mutable rows and columns and has a sync method.
 
 ## Features and bugs
