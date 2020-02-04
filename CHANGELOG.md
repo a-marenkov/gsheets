@@ -9,7 +9,6 @@
 - **Breaking change**: `Cell`'s fields `rowIndex` and `columnIndex` were renamed to `row` and `column`; 
 - Minor fixes.
 
-
 ## 0.1.1+1
 
 - Refactoring according to dart analysis.
