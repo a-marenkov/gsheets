@@ -1,3 +1,7 @@
+## 0.2.0+1
+
+- Readme update - added link to the article with credentials instructions.
+
 ## 0.2.0
 
 - Increased performance of methods that include mapping, use keys, fetch or append last row/column;
