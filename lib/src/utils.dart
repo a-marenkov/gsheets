@@ -28,12 +28,27 @@ void check(String name, int value) {
   if ((value ?? -1) < 1) throw GSheetsException('invalid $name ($value)');
 }
 
-void checkKey(String key) {
-  if (isNullOrEmpty(key)) throw GSheetsException('invalid key ($key)');
+String parseKey(dynamic key, [String type = '']) {
+  final k = key is String ? key : key?.toString();
+  if (isNullOrEmpty(k)) throw GSheetsException('invalid $type key ($key)');
+  return k;
 }
+
+String parseMapToKey(dynamic key) {
+  return key is String ? key : key?.toString();
+}
+
+String parseValue(dynamic value) =>
+    value is String ? value : value?.toString() ?? '';
 
 void checkValues(dynamic values) {
   if (isNullOrEmpty(values)) throw GSheetsException('invalid values ($values)');
+}
+
+void checkNotNested(List<dynamic> values) {
+  if (values is List<List>) {
+    throw GSheetsException('invalid values type (${values.runtimeType})');
+  }
 }
 
 void checkMap(dynamic values) {
@@ -91,6 +106,18 @@ String getOrEmpty(List<String> list, [int at = 0]) {
 
 int whereFirst(List<List<String>> lists, String key) {
   return lists.indexWhere((list) => get<String>(list) == key);
+}
+
+int inRangeIndex(List<List<String>> lists, int offset) {
+  int index;
+  for (var i = lists.length - 1; i > 0; i--) {
+    if (lists[i].length > offset - 1) {
+      break;
+    } else {
+      index = i;
+    }
+  }
+  return index ?? lists.length;
 }
 
 int maxLength(List<List> lists, [int atLeast = 0]) {
