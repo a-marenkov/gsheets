@@ -1709,8 +1709,7 @@ class WorksheetAsValues {
   /// of [values],
   /// rows start at index 1
   ///
-  /// [eager] - optional (defaults to `true`), whether to add
-  /// [rowKey]/[columnKey] if absent
+  /// [eager] - optional (defaults to `true`), whether to add [key] if absent
   ///
   /// Returns Future `true` in case of success.
   ///
@@ -1739,8 +1738,7 @@ class WorksheetAsValues {
   /// value of [values],
   /// columns start at index 1 (column A)
   ///
-  /// [eager] - optional (defaults to `true`), whether to add
-  /// [rowKey]/[columnKey] if absent
+  /// [eager] - optional (defaults to `true`), whether to add [key] if absent
   ///
   /// Returns Future `true` in case of success.
   ///
@@ -2450,8 +2448,7 @@ class ValuesMapper {
   /// [overwrite] - optional (defaults to `false`), whether clear cells of
   /// [key] column if [map] does not contain value for them
   ///
-  /// [eager] - optional (defaults to `true`), whether to add
-  /// [rowKey]/[columnKey] if absent
+  /// [eager] - optional (defaults to `true`), whether to add [key] if absent
   ///
   /// Returns Future `true` in case of success.
   ///
@@ -2718,7 +2715,7 @@ class ValuesMapper {
   /// columns start at index 1 (column A)
   ///
   /// [mapTo] - optional (defaults to 1), index of a row to which
-  /// keys of the [map] will be mapped to,
+  /// keys of the [maps] will be mapped to,
   /// rows start at index 1
   ///
   /// [appendMissing] - optional (defaults to `false`), whether keys of [maps]
@@ -2777,8 +2774,7 @@ class ValuesMapper {
   /// [overwrite] - whether clear cells of [key] row if [map] does not
   /// contain value for them
   ///
-  /// [eager] - optional (defaults to `true`), whether to add
-  /// [rowKey]/[columnKey] if absent
+  /// [eager] - optional (defaults to `true`), whether to add [key] if absent
   ///
   /// Returns Future `true` in case of success.
   ///
@@ -2876,7 +2872,7 @@ class ValuesMapper {
   /// columns start at index 1 (column A)
   ///
   /// [mapTo] - optional (defaults to 1), index of a row to which
-  /// keys of the [map] will be mapped to,
+  /// keys of the [maps] will be mapped to,
   /// rows start at index 1
   ///
   /// [appendMissing] - optional (defaults to `false`), whether keys of [maps]

@@ -1,9 +1,10 @@
-## 0.2.1-dev
+## 0.2.1
 
 - **Non-Breaking major change**: keys (for methods that use them) and values (for methods that update values) are made `dynamic`; 
 - added `ValueRenderOption` and `ValueInputOption` to `spreadsheet` method of `GSheets`;
 - added methods to `WorksheetAsValues` that insert multiple rows/columns (`insertRows`, `insertColumns`,`appendRows`,`appendColumns`);
-- added methods to `ValuesMapper` that insert multiple rows/columns (`insertRows`, `insertColumns`,`appendRows`,`appendColumns`).
+- added methods to `ValuesMapper` that insert multiple rows/columns (`insertRows`, `insertColumns`,`appendRows`,`appendColumns`);
+- added `eager` to the methods that insert values by keys.
 
 ## 0.2.0+1
 
