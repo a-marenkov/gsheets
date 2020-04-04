@@ -922,6 +922,7 @@ class Worksheet {
     );
     checkResponse(response);
     final values = jsonDecode(response.body)['values'] as List;
+    if (values == null) return <List<String>>[];
     final list = <List<String>>[];
     for (var sublist in values) {
       list.add((sublist as List)?.map(parseValue)?.toList() ?? <String>[]);
@@ -1436,6 +1437,9 @@ class WorksheetAsValues {
   /// [rowKey] - name of a row to insert [value] to
   /// The column A considered to be row names
   ///
+  /// [eager] - optional (defaults to `true`), whether to add
+  /// [rowKey]/[columnKey] if absent
+  ///
   /// Returns Future `true` in case of success.
   ///
   /// Throws [GSheetsException].
@@ -1443,12 +1447,15 @@ class WorksheetAsValues {
     dynamic value, {
     @required dynamic columnKey,
     @required dynamic rowKey,
+    bool eager = true,
   }) async {
     final rKey = parseKey(rowKey, 'row');
     final cKey = parseKey(columnKey, 'column');
     final rows = await allRows();
-    final row = _rowOf(rows, rKey);
-    final column = _columnOf(rows, cKey);
+    final row = _rowOf(rows, rKey, eager);
+    final column = _columnOf(rows, cKey, eager);
+    if (await row < 1) return false;
+    if (await column < 1) return false;
     return _ws._update(
       values: [value ?? ''],
       range: await _ws._columnRange(await column, await row, 1),
@@ -1456,11 +1463,14 @@ class WorksheetAsValues {
     );
   }
 
-  Future<int> _rowOf(List<List<String>> rows, String key) async {
-    if (rows.isEmpty) return 2;
+  Future<int> _rowOf(
+    List<List<String>> rows,
+    String key,
+    bool eager,
+  ) async {
     var row = whereFirst(rows, key) + 1;
-    if (row < 1) {
-      row = rows.length + 1;
+    if (eager && row < 1) {
+      row = max(rows.length + 1, 2);
       await _ws._update(
         values: [key],
         range: await _ws._columnRange(1, row, 1),
@@ -1470,11 +1480,17 @@ class WorksheetAsValues {
     return row;
   }
 
-  Future<int> _columnOf(List<List<String>> rows, String key) async {
-    if (rows.isEmpty) return 2;
-    var column = rows.first.indexOf(key) + 1;
-    if (column < 1) {
-      column = maxLength(rows, 2) + 1;
+  Future<int> _columnOf(
+    List<List<String>> rows,
+    String key,
+    bool eager,
+  ) async {
+    var column = 0;
+    if (rows.isNotEmpty) {
+      column = rows.first.indexOf(key) + 1;
+    }
+    if (eager && column < 1) {
+      column = maxLength(rows, 1) + 1;
       await _ws._update(
         values: [key],
         range: await _ws._columnRange(column, 1, 1),
@@ -1693,6 +1709,9 @@ class WorksheetAsValues {
   /// of [values],
   /// rows start at index 1
   ///
+  /// [eager] - optional (defaults to `true`), whether to add
+  /// [rowKey]/[columnKey] if absent
+  ///
   /// Returns Future `true` in case of success.
   ///
   /// Throws [GSheetsException].
@@ -1700,8 +1719,10 @@ class WorksheetAsValues {
     dynamic key,
     List<dynamic> values, {
     int fromRow = 2,
+    bool eager = true,
   }) async {
-    final column = await columnIndexOf(key, add: true);
+    final column = await columnIndexOf(key, add: eager);
+    if (column < 1) return false;
     return insertColumn(column, values, fromRow: fromRow);
   }
 
@@ -1718,6 +1739,9 @@ class WorksheetAsValues {
   /// value of [values],
   /// columns start at index 1 (column A)
   ///
+  /// [eager] - optional (defaults to `true`), whether to add
+  /// [rowKey]/[columnKey] if absent
+  ///
   /// Returns Future `true` in case of success.
   ///
   /// Throws [GSheetsException].
@@ -1725,8 +1749,10 @@ class WorksheetAsValues {
     dynamic key,
     List<dynamic> values, {
     int fromColumn = 2,
+    bool eager = true,
   }) async {
-    final row = await rowIndexOf(key, add: true);
+    final row = await rowIndexOf(key, add: eager);
+    if (row < 1) return false;
     return insertRow(row, values, fromColumn: fromColumn);
   }
 
@@ -2272,7 +2298,7 @@ class ValuesMapper {
         newKeysInsertion = _values.insertColumn(
           mapTo,
           newKeys.toList(),
-          fromRow: allKeys.length + 1,
+          fromRow: fromRow + keys.length,
         );
       }
     }
@@ -2424,6 +2450,9 @@ class ValuesMapper {
   /// [overwrite] - optional (defaults to `false`), whether clear cells of
   /// [key] column if [map] does not contain value for them
   ///
+  /// [eager] - optional (defaults to `true`), whether to add
+  /// [rowKey]/[columnKey] if absent
+  ///
   /// Returns Future `true` in case of success.
   ///
   /// Throws [GSheetsException].
@@ -2434,6 +2463,7 @@ class ValuesMapper {
     dynamic mapTo,
     bool appendMissing = false,
     bool overwrite = false,
+    bool eager = true,
   }) async {
     final cKey = parseKey(key);
     final mKey = parseMapToKey(mapTo);
@@ -2445,12 +2475,13 @@ class ValuesMapper {
     if (mapToIndex < 0) return false;
     var columnIndex = whereFirst(columns, cKey);
     if (columnIndex < 0) {
+      if (!eager || columns.isEmpty || columns.first.isEmpty) return false;
+      columnIndex = columns.length;
       await _values._ws._update(
         values: [cKey],
-        range: await _values._ws._columnRange(columns.length + 1, 1, 1),
+        range: await _values._ws._columnRange(columnIndex + 1, 1, 1),
         majorDimension: DIMEN_COLUMNS,
       );
-      columnIndex = columns.length;
     } else {
       checkMapTo(columnIndex + 1, mapToIndex + 1);
     }
@@ -2592,7 +2623,7 @@ class ValuesMapper {
         newKeysInsertion = _values.insertRow(
           mapTo,
           newKeys.toList(),
-          fromColumn: allKeys.length + 1,
+          fromColumn: fromColumn + keys.length,
         );
       }
     }
@@ -2746,6 +2777,9 @@ class ValuesMapper {
   /// [overwrite] - whether clear cells of [key] row if [map] does not
   /// contain value for them
   ///
+  /// [eager] - optional (defaults to `true`), whether to add
+  /// [rowKey]/[columnKey] if absent
+  ///
   /// Returns Future `true` in case of success.
   ///
   /// Throws [GSheetsException].
@@ -2756,6 +2790,7 @@ class ValuesMapper {
     dynamic mapTo,
     bool appendMissing = false,
     bool overwrite = false,
+    bool eager = true,
   }) async {
     final rKey = parseKey(key);
     final mKey = parseMapToKey(mapTo);
@@ -2767,12 +2802,13 @@ class ValuesMapper {
     if (mapToIndex < 0) return false;
     var rowIndex = whereFirst(rows, rKey);
     if (rowIndex < 0) {
+      if (!eager || rows.isEmpty || rows.first.isEmpty) return false;
+      rowIndex = rows.length;
       await _values._ws._update(
         values: [rKey],
-        range: await _values._ws._columnRange(1, rows.length + 1, 1),
+        range: await _values._ws._columnRange(1, rowIndex + 1, 1),
         majorDimension: DIMEN_COLUMNS,
       );
-      rowIndex = rows.length;
     } else {
       checkMapTo(rowIndex + 1, mapToIndex + 1);
     }
