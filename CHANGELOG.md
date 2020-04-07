@@ -1,3 +1,7 @@
+## 0.2.1+1
+
+- Readme update - added link to the medium article with tutorial.
+
 ## 0.2.1
 
 - **Non-Breaking major change**: keys (for methods that use them) and values (for methods that update values) are made `dynamic`; 

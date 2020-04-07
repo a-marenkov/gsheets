@@ -4,7 +4,7 @@ Manage your spreadsheets with gsheets in Dart.
 
 ## Usage
 
-Basic usage see [example][example].
+Basic usage see [example][example]. For more advanced examples, check out following article [Dart: Working With Google Sheets][tutorial].
 
 If you don't know where to find the credentials, i recommend you to read following article [How To Get Credentials for Google Sheets][credentials].
 
@@ -19,4 +19,4 @@ Please file feature requests and bugs at the [issue tracker][tracker].
 [tracker]: https://github.com/a-marenkov/gsheets/issues
 [example]: https://pub.dev/packages/gsheets#-example-tab-
 [credentials]: https://medium.com/@a.marenkov/how-to-get-credentials-for-google-sheets-456b7e88c430
-[upcoming]: https://pub.dev/packages/gsheets/versions/0.2.0-dev.1
+[tutorial]: https://medium.com/@a.marenkov/dart-working-with-google-sheets-793ed322daa0
