@@ -1,3 +1,7 @@
+## 0.2.2
+
+- Fixed `Unexpected character exception` if sheet's name contains character `/\`.
+
 ## 0.2.1+1
 
 - Readme update - added link to the medium article with tutorial.

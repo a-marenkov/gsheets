@@ -974,7 +974,8 @@ class Worksheet {
     final label = getColumnLetter(column);
     final to = length > 0 ? '${row + length - 1}' : '';
     await expand;
-    return "'$_title'!$label${row}:$label$to";
+    final title = Uri.encodeQueryComponent(_title);
+    return "'$title'!$label${row}:$label$to";
   }
 
   Future<String> _rowRange(int row, int column, int length) async {
@@ -982,7 +983,8 @@ class Worksheet {
     final label = getColumnLetter(column);
     final labelTo = length > 0 ? getColumnLetter(column + length - 1) : '';
     await expand;
-    return "'$_title'!${label}${row}:${labelTo}${row}";
+    final title = Uri.encodeQueryComponent(_title);
+    return "'$title'!${label}${row}:${labelTo}${row}";
   }
 
   Future<String> _allColumnsRange(
@@ -1001,7 +1003,8 @@ class Worksheet {
     final toLabel = count > 0
         ? getColumnLetter(column + count - 1)
         : getColumnLetter(columnCount);
-    return "'$_title'!$fromLabel${row}:$toLabel$to";
+    final title = Uri.encodeQueryComponent(_title);
+    return "'$title'!$fromLabel${row}:$toLabel$to";
   }
 
   Future<String> _allRowsRange(
@@ -1018,7 +1021,8 @@ class Worksheet {
     final toLabel = length > 0 ? getColumnLetter(column + length - 1) : '';
     await expand;
     final toRow = count > 0 ? row + count - 1 : rowCount;
-    return "'$_title'!${label}${row}:$toLabel$toRow";
+    final title = Uri.encodeQueryComponent(_title);
+    return "'$title'!${label}${row}:$toLabel$toRow";
   }
 
   Future<bool> _expand(int rows, int cols) async {
