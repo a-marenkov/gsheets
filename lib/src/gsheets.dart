@@ -828,8 +828,9 @@ class Worksheet {
   }
 
   Future<bool> _clear(String range) async {
+    var encodedRange = Uri.encodeComponent(range);
     final response = await _client.post(
-      '$_sheetsEndpoint$spreadsheetId/values/$range:clear',
+      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange:clear',
     );
     checkResponse(response);
     return response.statusCode == 200;
@@ -908,8 +909,9 @@ class Worksheet {
   }
 
   Future<List<String>> _get(String range, String dimension) async {
+    var encodedRange = Uri.encodeComponent(range);
     final response = await _client.get(
-      '$_sheetsEndpoint$spreadsheetId/values/$range?majorDimension=$dimension&valueRenderOption=$renderOption',
+      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption',
     );
     checkResponse(response);
     final list = (jsonDecode(response.body)['values'] as List)?.first as List;
@@ -917,8 +919,9 @@ class Worksheet {
   }
 
   Future<List<List<String>>> _getAll(String range, String dimension) async {
+    var encodedRange = Uri.encodeComponent(range);
     final response = await _client.get(
-      '$_sheetsEndpoint$spreadsheetId/values/$range?majorDimension=$dimension&valueRenderOption=$renderOption',
+      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption',
     );
     checkResponse(response);
     final values = jsonDecode(response.body)['values'] as List;
@@ -936,8 +939,9 @@ class Worksheet {
     String range,
   }) async {
     checkNotNested(values);
+    var encodedRange = Uri.encodeComponent(range);
     final response = await _client.put(
-      '$_sheetsEndpoint$spreadsheetId/values/$range?valueInputOption=$inputOption',
+      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?valueInputOption=$inputOption',
       body: jsonEncode(
         {
           'range': range,
@@ -955,8 +959,9 @@ class Worksheet {
     String majorDimension,
     String range,
   }) async {
+    var encodedRange = Uri.encodeComponent(range);
     final response = await _client.put(
-      '$_sheetsEndpoint$spreadsheetId/values/$range?valueInputOption=$inputOption',
+      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?valueInputOption=$inputOption',
       body: jsonEncode(
         {
           'range': range,
@@ -974,8 +979,7 @@ class Worksheet {
     final label = getColumnLetter(column);
     final to = length > 0 ? '${row + length - 1}' : '';
     await expand;
-    final title = Uri.encodeQueryComponent(_title);
-    return "'$title'!$label${row}:$label$to";
+    return "'$_title'!$label${row}:$label$to";
   }
 
   Future<String> _rowRange(int row, int column, int length) async {
@@ -983,8 +987,7 @@ class Worksheet {
     final label = getColumnLetter(column);
     final labelTo = length > 0 ? getColumnLetter(column + length - 1) : '';
     await expand;
-    final title = Uri.encodeQueryComponent(_title);
-    return "'$title'!${label}${row}:${labelTo}${row}";
+    return "'$_title'!${label}${row}:${labelTo}${row}";
   }
 
   Future<String> _allColumnsRange(
@@ -1003,8 +1006,7 @@ class Worksheet {
     final toLabel = count > 0
         ? getColumnLetter(column + count - 1)
         : getColumnLetter(columnCount);
-    final title = Uri.encodeQueryComponent(_title);
-    return "'$title'!$fromLabel${row}:$toLabel$to";
+    return "'$_title'!$fromLabel${row}:$toLabel$to";
   }
 
   Future<String> _allRowsRange(
@@ -1021,8 +1023,7 @@ class Worksheet {
     final toLabel = length > 0 ? getColumnLetter(column + length - 1) : '';
     await expand;
     final toRow = count > 0 ? row + count - 1 : rowCount;
-    final title = Uri.encodeQueryComponent(_title);
-    return "'$title'!${label}${row}:$toLabel$toRow";
+    return "'$_title'!${label}${row}:$toLabel$toRow";
   }
 
   Future<bool> _expand(int rows, int cols) async {

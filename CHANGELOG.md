@@ -1,6 +1,7 @@
-## 0.2.2
+## 0.2.3
 
-- Fixed `Unexpected character exception` if sheet's name contains character `/\`.
+- Added encoding to ranges - fixes `Unexpected character exception` if sheet's name contains character `/` or 
+other characters that has to be encoded.
 
 ## 0.2.1+1
 
