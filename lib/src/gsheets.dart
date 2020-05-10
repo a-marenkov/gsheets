@@ -79,18 +79,36 @@ class GSheets {
   /// Throws GSheetsException if does not have permission.
   Future<Spreadsheet> createSpreadsheet(
       String title, {
+      List<String> worksheetTitles = const <String>['Sheet1'],
       ValueRenderOption render = ValueRenderOption.unformatted_value,
       ValueInputOption input = ValueInputOption.user_entered
     }) async {
+    except(
+      isNullOrEmpty(worksheetTitles),
+      'Invalid worksheetTitles ($worksheetTitles)',
+    );
     final client = await this.client.catchError((_) {
       // retry once on error
       _client = null;
       return this.client;
     });
+    final worksheets = worksheetTitles
+      .map((title) => {
+            'properties': {
+              'title': title,
+              'sheetType': 'GRID',
+              'gridProperties': {
+                'rowCount': 1000,
+                'columnCount': 1000,
+              }
+            },
+          })
+      .toList();
     final response = await client.post(_sheetsEndpoint, body: jsonEncode({
       'properties': {
         'title': title,
       },
+      'sheets': worksheets,
     }));
     checkResponse(response);
     final renderOption = _parseRenderOption(render);
