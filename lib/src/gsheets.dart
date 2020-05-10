@@ -65,6 +65,18 @@ class GSheets {
     return _client;
   }
 
+  /// Makes a new [BatchUpdate] class
+  ///
+  /// Requires SheetsApi.SpreadsheetsScope.
+  Future<BatchUpdate> batchUpdate() async {
+    final client = await this.client.catchError((_) {
+      // retry once on error
+      _client = null;
+      return this.client;
+    });
+    return BatchUpdate._(client);
+  }
+
   /// Fetches and returns Future [Spreadsheet].
   ///
   /// Requires SheetsApi.SpreadsheetsScope.
@@ -3793,5 +3805,135 @@ class CellsMapper {
   /// Throws [GSheetsException].
   Future<bool> insert(Map<String, Cell> map) async {
     return _cells.insert(map.values.toList()..sort());
+  }
+}
+
+/// Can change more than one thing in a spreadsheet at once.
+///
+/// Requests are made in the order of [requestQueue].
+class BatchUpdate {
+
+  final AutoRefreshingAuthClient _client;
+
+  BatchUpdate._(this._client);
+
+  /// List of valid request types.
+  /// More info is available at [the offical Google docs](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#request)
+  static const List<Type> validRequests = [
+    v4.UpdateSpreadsheetPropertiesRequest,
+    v4.UpdateSheetPropertiesRequest,
+    v4.UpdateDimensionPropertiesRequest,
+    v4.UpdateNamedRangeRequest,
+    v4.RepeatCellRequest,
+    v4.AddNamedRangeRequest,
+    v4.DeleteNamedRangeRequest,
+    v4.AddSheetRequest,
+    v4.DeleteSheetRequest,
+    v4.AutoFillRequest,
+    v4.CutPasteRequest,
+    v4.CopyPasteRequest,
+    v4.MergeCellsRequest,
+    v4.UnmergeCellsRequest,
+    v4.UpdateBordersRequest,
+    v4.UpdateCellsRequest,
+    v4.AddFilterViewRequest,
+    v4.AppendCellsRequest,
+    v4.ClearBasicFilterRequest,
+    v4.DeleteDimensionRequest,
+    v4.DeleteEmbeddedObjectRequest,
+    v4.DeleteFilterViewRequest,
+    v4.DuplicateFilterViewRequest,
+    v4.DuplicateSheetRequest,
+    v4.FindReplaceRequest,
+    v4.InsertDimensionRequest,
+    v4.InsertRangeRequest,
+    v4.MoveDimensionRequest,
+    v4.UpdateEmbeddedObjectPositionRequest,
+    v4.PasteDataRequest,
+    v4.TextToColumnsRequest,
+    v4.UpdateFilterViewRequest,
+    v4.DeleteRangeRequest,
+    v4.AppendDimensionRequest,
+    v4.AddConditionalFormatRuleRequest,
+    v4.UpdateConditionalFormatRuleRequest,
+    v4.DeleteConditionalFormatRuleRequest,
+    v4.SortRangeRequest,
+    v4.SetDataValidationRequest,
+    v4.SetBasicFilterRequest,
+    v4.AddProtectedRangeRequest,
+    v4.UpdateProtectedRangeRequest,
+    v4.DeleteProtectedRangeRequest,
+    v4.AutoResizeDimensionsRequest,
+    v4.AddChartRequest,
+    v4.UpdateChartSpecRequest,
+    v4.UpdateBandingRequest,
+    v4.AddBandingRequest,
+    v4.DeleteBandingRequest,
+    v4.CreateDeveloperMetadataRequest,
+    v4.UpdateDeveloperMetadataRequest,
+    v4.DeleteDeveloperMetadataRequest,
+    v4.RandomizeRangeRequest,
+    v4.AddDimensionGroupRequest,
+    v4.DeleteDimensionGroupRequest,
+    v4.UpdateDimensionGroupRequest,
+    v4.TrimWhitespaceRequest,
+    v4.DeleteDuplicatesRequest,
+    v4.AddSlicerRequest,
+    v4.UpdateSlicerSpecRequest,
+  ];
+
+  /// List of requests.  If you try to add any object that isn't a valid request object, [apply] will silently ignore it, and delete it from the requests to perform.
+  final List<dynamic> requestQueue = [];
+
+  /// Adds [request] to the request queue.
+  ///
+  /// [request] - A valid request object.  List is available at the [googleapi.sheets.v4 docs.](https://pub.dev/documentation/googleapis/latest/googleapis.sheets.v4/Request-class.html)
+  /// If you try to add any object that isn't a valid request object, [apply] will silently ignore it, and delete it from the requests to perform.
+  ///
+  /// [pos] - Optional list index to insert the request at.
+  ///
+  /// Returns the [BatchUpdate] class for chaining.
+  ///
+  /// Throws [GSheetsException]
+  BatchUpdate addRequest(request, {int pos}) {
+    if (pos == null) {
+      requestQueue.add(request);
+    } else if (pos >= requestQueue.length || pos < 0) {
+      throw GSheetsException('Invalid value for pos, $pos');
+    } else {
+      requestQueue.insert(pos, request);
+    }
+    return this;
+  }
+
+  /// Performs all the queued operations on the specified spreadsheet.
+  ///
+  /// [spreadsheetID] - Strind id for the spreadsheet
+  ///
+  /// Returns a list of Responses that maps 1:1 with the requestQueue, some values may be null.
+  /// See the [googleapis.sheets.v4 docs](https://pub.dev/documentation/googleapis/latest/googleapis.sheets.v4/Response-class.html) for possible values.
+  Future<List<v4.Response>> apply(String spreadsheetID) async {
+    final checkedRequests = [];
+    for (var request in requestQueue) {
+      if (validRequests.contains(request.runtimeType)) {
+        checkedRequests.add(request.toJson());
+      }
+    }
+    final response = await _client.post('$_sheetsEndpoint$spreadsheetID:batchUpdate',
+      body: jsonEncode({
+        'requests': checkedRequests,
+      })
+    );
+    checkResponse(response);
+    final body = jsonDecode(response.body);
+    final responses = [];
+    for (var response in body['replies']) {
+      if (response == null) {
+        responses.add(null);
+      } else {
+        responses.add(v4.Response.fromJson(response));
+      }
+    }
+    return responses;
   }
 }
