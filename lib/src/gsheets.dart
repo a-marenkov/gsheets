@@ -65,6 +65,73 @@ class GSheets {
     return _client;
   }
 
+  /// Creates a new [Spreadsheet], and returns it.
+  ///
+  /// Requires SheetsApi.SpreadsheetsScope.
+  ///
+  /// [render] - determines how values should be rendered in the output.
+  /// https://developers.google.com/sheets/api/reference/rest/v4/ValueRenderOption
+  ///
+  /// [input] - determines how input data should be interpreted.
+  /// https://developers.google.com/sheets/api/reference/rest/v4/ValueInputOption
+  ///
+  /// Throws Exception if [GSheets]'s scopes does not include SpreadsheetsScope.
+  /// Throws GSheetsException if does not have permission.
+  Future<Spreadsheet> createSpreadsheet(
+      String title, {
+      List<String> worksheetTitles = const <String>['Sheet1'],
+      ValueRenderOption render = ValueRenderOption.unformatted_value,
+      ValueInputOption input = ValueInputOption.user_entered
+    }) async {
+    except(
+      isNullOrEmpty(worksheetTitles),
+      'Invalid worksheetTitles ($worksheetTitles)',
+    );
+    final client = await this.client.catchError((_) {
+      // retry once on error
+      _client = null;
+      return this.client;
+    });
+    final worksheets = worksheetTitles
+      .map((title) => {
+            'properties': {
+              'title': title,
+              'sheetType': 'GRID',
+              'gridProperties': {
+                'rowCount': 1000,
+                'columnCount': 1000,
+              }
+            },
+          })
+      .toList();
+    final response = await client.post(_sheetsEndpoint, body: jsonEncode({
+      'properties': {
+        'title': title,
+      },
+      'sheets': worksheets,
+    }));
+    checkResponse(response);
+    final renderOption = _parseRenderOption(render);
+    final inputOption = _parseInputOption(input);
+    final spreadsheetId = jsonDecode(response.body)['spreadsheetId'];
+    final sheets = (jsonDecode(response.body)['sheets'] as List)
+        .map((json) => Worksheet._fromJson(
+              json,
+              client,
+              spreadsheetId,
+              renderOption,
+              inputOption,
+            ))
+        .toList();
+    return Spreadsheet._(
+      client,
+      spreadsheetId,
+      sheets,
+      renderOption,
+      inputOption,
+    );
+  }
+
   /// Fetches and returns Future [Spreadsheet].
   ///
   /// Requires SheetsApi.SpreadsheetsScope.
