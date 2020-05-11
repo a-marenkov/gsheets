@@ -199,7 +199,24 @@ class GSheets {
     }
   }
 
-  static Future<http.Response> _batchUpdate(
+  /// Applies one or more updates to the spreadsheet.
+  /// [About batchUpdate](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/batchUpdate)
+  ///
+  /// [client] - client that is used for request.
+  ///
+  /// [spreadsheetId] - the id of a spreadsheet to perform [requests] on.
+  ///
+  /// [requests] - list of valid requests to perform on the [Spreadsheet] with
+  /// [spreadsheetId]
+  /// Information about requests is available at [the official Google docs](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#request)
+  ///
+  /// To create [requests] you can use official [googleapis library](https://pub.dev/packages/googleapis)
+  ///
+  /// Returns the [http.Response>] of batchUpdate request.
+  /// [About batchUpdate response](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/response)
+  ///
+  /// Throws [GSheetsException]
+  static Future<http.Response> batchUpdate(
     AutoRefreshingAuthClient client,
     String spreadsheetId,
     List<Map<String, dynamic>> requests,
@@ -231,6 +248,21 @@ class Spreadsheet {
     this.renderOption,
     this.inputOption,
   );
+
+  /// Applies one or more updates to the spreadsheet.
+  /// [About batchUpdate](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/batchUpdate)
+  ///
+  /// [requests] - list of valid requests to perform on the [Spreadsheet]
+  /// Information about requests is available at [the official Google docs](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/request#request)
+  ///
+  /// To create [requests] you can use official [googleapis library](https://pub.dev/packages/googleapis)
+  ///
+  /// Returns the [http.Response>] of batchUpdate request.
+  /// [About batchUpdate response](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/response)
+  ///
+  /// Throws [GSheetsException]
+  Future<http.Response> batchUpdate(List<Map<String, dynamic>> requests) =>
+      GSheets.batchUpdate(_client, id, requests);
 
   /// Refreshes [Spreadsheet].
   ///
@@ -304,7 +336,7 @@ class Spreadsheet {
   }) async {
     check('columns', columns);
     check('rows', rows);
-    final response = await GSheets._batchUpdate(_client, id, [
+    final response = await GSheets.batchUpdate(_client, id, [
       {
         'addSheet': {
           'properties': {
@@ -344,7 +376,7 @@ class Spreadsheet {
     int index,
   }) async {
     except((index ?? 0) < 0, 'invalid index ($index)');
-    final response = await GSheets._batchUpdate(_client, id, [
+    final response = await GSheets.batchUpdate(_client, id, [
       {
         'duplicateSheet': {
           'sourceSheetId': ws.id,
@@ -375,7 +407,7 @@ class Spreadsheet {
   ///
   /// Throws [GSheetsException].
   Future<bool> deleteWorksheet(Worksheet ws) async {
-    await GSheets._batchUpdate(_client, id, [
+    await GSheets.batchUpdate(_client, id, [
       {
         'deleteSheet': {'sheetId': ws.id}
       }
@@ -647,7 +679,7 @@ class Worksheet {
     if (_title == title || isNullOrEmpty(title)) {
       return false;
     }
-    await GSheets._batchUpdate(_client, spreadsheetId, [
+    await GSheets.batchUpdate(_client, spreadsheetId, [
       {
         'updateSheetProperties': {
           'properties': {
@@ -679,7 +711,7 @@ class Worksheet {
 
   Future<bool> _deleteDimension(String dimen, int index, int count) async {
     check('count', count);
-    await GSheets._batchUpdate(_client, spreadsheetId, [
+    await GSheets.batchUpdate(_client, spreadsheetId, [
       {
         'deleteDimension': {
           'range': {
@@ -741,7 +773,7 @@ class Worksheet {
     bool inheritFromBefore,
   ) async {
     check('count', count);
-    await GSheets._batchUpdate(_client, spreadsheetId, [
+    await GSheets.batchUpdate(_client, spreadsheetId, [
       {
         'insertDimension': {
           'range': {
@@ -839,7 +871,7 @@ class Worksheet {
     final cFrom = from < to ? from : to;
     final cTo = from < to ? to : from + count - 1;
     final cCount = from < to ? count : from - to;
-    await GSheets._batchUpdate(_client, spreadsheetId, [
+    await GSheets.batchUpdate(_client, spreadsheetId, [
       {
         'moveDimension': {
           'source': {
@@ -1107,7 +1139,7 @@ class Worksheet {
       changed = true;
     }
     if (changed) {
-      final response = await GSheets._batchUpdate(_client, spreadsheetId, [
+      final response = await GSheets.batchUpdate(_client, spreadsheetId, [
         {
           'updateSheetProperties': {
             'properties': {
