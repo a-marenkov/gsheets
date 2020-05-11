@@ -1,3 +1,9 @@
+## 0.2.4-dev
+
+- Added `createSpreadsheet` method to `GSheets` that allows to create new spreadsheet;
+- Added `batchUpdate` method to `Spreadsheet` that applies one or more updates to the spreadsheet;
+- Exposed method `batchUpdate` method of `Gsheets`.
+
 ## 0.2.3
 
 - Added encoding to ranges - fixes `Unexpected character exception` if sheet's name contains character `/` or 
