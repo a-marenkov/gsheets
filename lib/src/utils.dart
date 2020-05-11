@@ -7,6 +7,8 @@ import 'gsheets.dart';
 
 const DIMEN_ROWS = 'ROWS';
 const DIMEN_COLUMNS = 'COLUMNS';
+const defaultRowsCount = 1000;
+const defaultColumnCount = 26;
 
 final int _char_a = 'A'.codeUnitAt(0);
 

@@ -69,6 +69,12 @@ class GSheets {
   ///
   /// Requires SheetsApi.SpreadsheetsScope.
   ///
+  /// It's recommended to save [Spreadsheet] id once its created, it also can be
+  /// shared with the user by email via method `share` of [Spreadsheet].
+  ///
+  /// [worksheetTitles] - optional (defaults to `['Sheet1']`), titles of the
+  /// worksheets that will be created along with the spreadsheet
+  ///
   /// [render] - determines how values should be rendered in the output.
   /// https://developers.google.com/sheets/api/reference/rest/v4/ValueRenderOption
   ///
@@ -78,38 +84,35 @@ class GSheets {
   /// Throws Exception if [GSheets]'s scopes does not include SpreadsheetsScope.
   /// Throws GSheetsException if does not have permission.
   Future<Spreadsheet> createSpreadsheet(
-      String title, {
-      List<String> worksheetTitles = const <String>['Sheet1'],
-      ValueRenderOption render = ValueRenderOption.unformatted_value,
-      ValueInputOption input = ValueInputOption.user_entered
-    }) async {
-    except(
-      isNullOrEmpty(worksheetTitles),
-      'Invalid worksheetTitles ($worksheetTitles)',
-    );
+    String title, {
+    List<String> worksheetTitles = const <String>['Sheet1'],
+    ValueRenderOption render = ValueRenderOption.unformatted_value,
+    ValueInputOption input = ValueInputOption.user_entered,
+  }) async {
     final client = await this.client.catchError((_) {
       // retry once on error
       _client = null;
       return this.client;
     });
     final worksheets = worksheetTitles
-      .map((title) => {
-            'properties': {
-              'title': title,
-              'sheetType': 'GRID',
-              'gridProperties': {
-                'rowCount': 1000,
-                'columnCount': 1000,
-              }
-            },
-          })
-      .toList();
-    final response = await client.post(_sheetsEndpoint, body: jsonEncode({
-      'properties': {
-        'title': title,
-      },
-      'sheets': worksheets,
-    }));
+        .map((title) => {
+              'properties': {
+                'title': title,
+                'sheetType': 'GRID',
+                'gridProperties': {
+                  'rowCount': defaultRowsCount,
+                  'columnCount': defaultColumnCount,
+                }
+              },
+            })
+        .toList();
+    final response = await client.post(_sheetsEndpoint,
+        body: jsonEncode({
+          'properties': {
+            'title': title,
+          },
+          'sheets': worksheets,
+        }));
     checkResponse(response);
     final renderOption = _parseRenderOption(render);
     final inputOption = _parseInputOption(input);
@@ -296,8 +299,8 @@ class Spreadsheet {
   /// if [rows] or [columns] value is invalid.
   Future<Worksheet> addWorksheet(
     String title, {
-    int rows = 1000,
-    int columns = 26,
+    int rows = defaultRowsCount,
+    int columns = defaultColumnCount,
   }) async {
     check('columns', columns);
     check('rows', rows);
