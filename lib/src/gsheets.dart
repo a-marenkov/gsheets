@@ -95,7 +95,7 @@ class GSheets {
       return this.client;
     });
     final worksheets = worksheetTitles
-        .map((title) => {
+        ?.map((title) => {
               'properties': {
                 'title': title,
                 'sheetType': 'GRID',
@@ -105,7 +105,7 @@ class GSheets {
                 }
               },
             })
-        .toList();
+        ?.toList();
     final response = await client.post(_sheetsEndpoint,
         body: jsonEncode({
           'properties': {

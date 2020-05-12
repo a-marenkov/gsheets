@@ -1,8 +1,8 @@
-## 0.2.4-dev
+## 0.2.4
 
 - Added `createSpreadsheet` method to `GSheets` that allows to create new spreadsheet;
 - Added `batchUpdate` method to `Spreadsheet` that applies one or more updates to the spreadsheet;
-- Exposed method `batchUpdate` method of `Gsheets`.
+- Exposed `batchUpdate` method of `Gsheets`.
 
 ## 0.2.3
 
