@@ -162,6 +162,7 @@ class GSheets {
     final renderOption = _parseRenderOption(render);
     final inputOption = _parseInputOption(input);
     final sheets = (jsonDecode(response.body)['sheets'] as List)
+        .where((element) => !element.containsKey('charts'))
         .map((json) => Worksheet._fromJson(
               json,
               client,
