@@ -131,3 +131,5 @@ int maxLength(List<List> lists, [int atLeast = 0]) {
 }
 
 bool isNullOrEmpty(dynamic data) => data == null || data.isEmpty;
+
+bool gridSheetsFilter(json) => json['properties']['sheetType'] == 'GRID';

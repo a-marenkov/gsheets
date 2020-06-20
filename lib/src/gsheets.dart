@@ -162,7 +162,7 @@ class GSheets {
     final renderOption = _parseRenderOption(render);
     final inputOption = _parseInputOption(input);
     final sheets = (jsonDecode(response.body)['sheets'] as List)
-        .where((element) => element['properties']['sheetType'] == "GRID")
+        .where(gridSheetsFilter)
         .map((json) => Worksheet._fromJson(
               json,
               client,
@@ -275,6 +275,7 @@ class Spreadsheet {
     final response = await _client.get('$_sheetsEndpoint$id');
     if (response.statusCode == 200) {
       final sheets = (jsonDecode(response.body)['sheets'] as List)
+          .where(gridSheetsFilter)
           .map((json) => Worksheet._fromJson(
                 json,
                 _client,
