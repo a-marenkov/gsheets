@@ -1,3 +1,7 @@
+## 0.2.4+1
+
+- Fixed fetching spreadsheets that contain non-grid worksheets
+
 ## 0.2.4
 
 - Added `createSpreadsheet` method to `GSheets` that allows to create new spreadsheet;
