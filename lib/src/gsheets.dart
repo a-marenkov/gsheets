@@ -1118,11 +1118,9 @@ class Worksheet {
       max(column, column + count - 1),
     );
     final fromLabel = getColumnLetter(column);
-    final to = length > 0 ? row + length - 1 : '';
+    final to = length > 0 ? row + length - 1 : gsheetsCellsLimit;
     await expand;
-    final toLabel = count > 0
-        ? getColumnLetter(column + count - 1)
-        : getColumnLetter(columnCount);
+    final toLabel = count > 0 ? getColumnLetter(column + count - 1) : '';
     return "'$_title'!$fromLabel${row}:$toLabel$to";
   }
 
@@ -1139,7 +1137,7 @@ class Worksheet {
     final label = getColumnLetter(column);
     final toLabel = length > 0 ? getColumnLetter(column + length - 1) : '';
     await expand;
-    final toRow = count > 0 ? row + count - 1 : rowCount;
+    final toRow = count > 0 ? row + count - 1 : gsheetsCellsLimit;
     return "'$_title'!${label}${row}:$toLabel$toRow";
   }
 
