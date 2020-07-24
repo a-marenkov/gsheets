@@ -237,13 +237,17 @@ enum ValueInputOption { user_entered, raw }
 /// Representation of a [Spreadsheet], manages [Worksheet]s.
 class Spreadsheet {
   final AutoRefreshingAuthClient _client;
+
   /// [Spreadsheet]'s id
   final String id;
+
   /// List of [Worksheet]s
   final List<Worksheet> sheets;
+
   /// Determines how values should be rendered in the output.
   /// https://developers.google.com/sheets/api/reference/rest/v4/ValueRenderOption
   final String renderOption;
+
   /// Determines how input data should be interpreted.
   /// https://developers.google.com/sheets/api/reference/rest/v4/ValueInputOption
   final String inputOption;
@@ -280,7 +284,7 @@ class Spreadsheet {
   Future<bool> refresh() async {
     final response = await _client.get('$_sheetsEndpoint$id');
     if (response.statusCode == 200) {
-      final sheets = (jsonDecode(response.body)['sheets'] as List)
+      final newSheets = (jsonDecode(response.body)['sheets'] as List)
           .where(gridSheetsFilter)
           .map((json) => Worksheet._fromJson(
                 json,
@@ -290,8 +294,30 @@ class Spreadsheet {
                 inputOption,
               ))
           .toList();
-      this.sheets.clear();
-      this.sheets.addAll(sheets);
+      // removing deleted sheets
+      final newIds = newSheets.map((s) => s.id).toSet();
+      final oldIds = sheets.map((s) => s.id).toSet();
+      final deleted = oldIds.difference(newIds);
+      for (final id in deleted) {
+        sheets.removeWhere((s) => s.id == id);
+      }
+      // adding and updating sheets
+      for (final sheet in newSheets) {
+        final changed = sheets.firstWhere(
+          (s) => s.id == sheet.id,
+          orElse: () => null,
+        );
+        if (changed == null) {
+          // adding new sheet
+          sheets.add(sheet);
+        } else {
+          // updating old sheet
+          changed._title = sheet._title;
+          changed._index = sheet._index;
+          changed._rowCount = sheet._rowCount;
+          changed._columnCount = sheet._columnCount;
+        }
+      }
       return true;
     }
     return false;
@@ -539,15 +565,20 @@ enum PermRole { owner, writer, reader }
 class Permission {
   /// The ID of this [Permission]. This is a unique identifier for the grantee.
   final String id;
+
   /// The "pretty" name of the value of the [Permission].
   final String name;
+
   /// The email address of the user or group to which this permission refers.
   final String email;
+
   /// The type of the grantee (user, group, domain, anyone).
   final String type;
+
   /// The role granted by this permission (owner, organizer, fileOrganizer,
   /// writer, commenter, reader).
   final String role;
+
   /// Whether the account associated with this permission has been deleted.
   final bool deleted;
 
@@ -683,6 +714,11 @@ class Worksheet {
       renderOption,
       inputOption,
     );
+  }
+
+  @override
+  String toString() {
+    return 'Worksheet{spreadsheetId: $spreadsheetId, id: $id, title: $_title, index: $_index, rowCount: $_rowCount, columnCount: $_columnCount}';
   }
 
   /// Updates title of this [Worksheet].
