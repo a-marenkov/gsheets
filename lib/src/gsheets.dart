@@ -213,7 +213,7 @@ class GSheets {
   ///
   /// To create [requests] you can use official [googleapis library](https://pub.dev/packages/googleapis)
   ///
-  /// Returns the [http.Response>] of batchUpdate request.
+  /// Returns the [Response] of batchUpdate request.
   /// [About batchUpdate response](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/response)
   ///
   /// Throws [GSheetsException]
@@ -237,9 +237,15 @@ enum ValueInputOption { user_entered, raw }
 /// Representation of a [Spreadsheet], manages [Worksheet]s.
 class Spreadsheet {
   final AutoRefreshingAuthClient _client;
+  /// [Spreadsheet]'s id
   final String id;
+  /// List of [Worksheet]s
   final List<Worksheet> sheets;
+  /// Determines how values should be rendered in the output.
+  /// https://developers.google.com/sheets/api/reference/rest/v4/ValueRenderOption
   final String renderOption;
+  /// Determines how input data should be interpreted.
+  /// https://developers.google.com/sheets/api/reference/rest/v4/ValueInputOption
   final String inputOption;
 
   Spreadsheet._(
@@ -258,7 +264,7 @@ class Spreadsheet {
   ///
   /// To create [requests] you can use official [googleapis library](https://pub.dev/packages/googleapis)
   ///
-  /// Returns the [http.Response>] of batchUpdate request.
+  /// Returns the [Response] of batchUpdate request.
   /// [About batchUpdate response](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/response)
   ///
   /// Throws [GSheetsException]
@@ -531,11 +537,18 @@ enum PermRole { owner, writer, reader }
 
 /// Representation of a permission.
 class Permission {
+  /// The ID of this [Permission]. This is a unique identifier for the grantee.
   final String id;
+  /// The "pretty" name of the value of the [Permission].
   final String name;
+  /// The email address of the user or group to which this permission refers.
   final String email;
+  /// The type of the grantee (user, group, domain, anyone).
   final String type;
+  /// The role granted by this permission (owner, organizer, fileOrganizer,
+  /// writer, commenter, reader).
   final String role;
+  /// Whether the account associated with this permission has been deleted.
   final bool deleted;
 
   static const _typeUser = 'user';
