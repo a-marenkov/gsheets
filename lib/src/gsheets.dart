@@ -398,6 +398,42 @@ class Spreadsheet {
     return ws;
   }
 
+  /// Copies [Worksheet] from another spreadsheet (the name of the copy will
+  /// be "Copy of {title of copied sheet}").
+  ///
+  /// [spreadsheetId] - source spreadsheet id
+  /// [sheetId] - id of the worksheet to copy
+  ///
+  /// Provided `credentialsJson` has to have permission to [spreadsheetId].
+  ///
+  /// Returns Future [Worksheet] in case of success.
+  ///
+  /// Throws [GSheetsException].
+  Future<Worksheet> addFromSpreadsheet(
+    String spreadsheetId,
+    int sheetId,
+  ) async {
+    if (isNullOrEmpty(spreadsheetId) || spreadsheetId == id) {
+      throw GSheetsException('invalid spreadsheetId ($spreadsheetId)');
+    }
+    final response = await _client.post(
+      '$_sheetsEndpoint$spreadsheetId/sheets/$sheetId:copyTo',
+      body: jsonEncode({'destinationSpreadsheetId': id}),
+    );
+    checkResponse(response);
+    final json = {'properties': jsonDecode(response.body)};
+    final ws = Worksheet._fromJson(
+      json,
+      _client,
+      id,
+      renderOption,
+      inputOption,
+    );
+    sheets.forEach((sheet) => sheet._incrementIndex(ws.index - 1));
+    sheets.add(ws);
+    return ws;
+  }
+
   /// Copies [ws] with specified [title] and [index].
   ///
   /// Returns Future of created [Worksheet].
@@ -743,6 +779,28 @@ class Worksheet {
     ]);
     _title = title;
     return true;
+  }
+
+  /// Copies this [Worksheet] to another spreadsheet (the name of the copy will
+  /// be "Copy of [title]").
+  ///
+  /// [spreadsheetId] - destination spreadsheet id.
+  ///
+  /// Provided `credentialsJson` has to have permission to [spreadsheetId].
+  ///
+  /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
+  Future<bool> copyTo(String spreadsheetId) async {
+    if (isNullOrEmpty(spreadsheetId) || spreadsheetId == this.spreadsheetId) {
+      throw GSheetsException('invalid spreadsheetId ($spreadsheetId)');
+    }
+    final response = await _client.post(
+      '$_sheetsEndpoint${this.spreadsheetId}/sheets/$id:copyTo',
+      body: jsonEncode({'destinationSpreadsheetId': spreadsheetId}),
+    );
+    checkResponse(response);
+    return response.statusCode == 200;
   }
 
   /// Expands [Worksheet] by adding new rows/columns to the end of the sheet.
