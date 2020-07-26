@@ -1,3 +1,11 @@
+## 0.2.5-dev.1
+
+- Added `addFromSpreadsheet` method to `Spreadsheet` that copies worksheet from another spreadsheet;
+- Added `copyTo` method to `Worksheet` that copies it to another spreadsheet;
+- Refactored `refresh` method of `Spreadsheet` - now it updates current list of worksheets instead of supplying new one; 
+- Fixed inserting and reading all rows/columns if worksheet's number of rows/columns has been changed by some other source;
+- Added some documentation to Permission and Spreadsheet.
+
 ## 0.2.4+1
 
 - Fixed fetching spreadsheets that contain non-grid worksheets

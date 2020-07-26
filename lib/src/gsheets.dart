@@ -213,7 +213,7 @@ class GSheets {
   ///
   /// To create [requests] you can use official [googleapis library](https://pub.dev/packages/googleapis)
   ///
-  /// Returns the [http.Response>] of batchUpdate request.
+  /// Returns the [Response] of batchUpdate request.
   /// [About batchUpdate response](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/response)
   ///
   /// Throws [GSheetsException]
@@ -237,9 +237,19 @@ enum ValueInputOption { user_entered, raw }
 /// Representation of a [Spreadsheet], manages [Worksheet]s.
 class Spreadsheet {
   final AutoRefreshingAuthClient _client;
+
+  /// [Spreadsheet]'s id
   final String id;
+
+  /// List of [Worksheet]s
   final List<Worksheet> sheets;
+
+  /// Determines how values should be rendered in the output.
+  /// https://developers.google.com/sheets/api/reference/rest/v4/ValueRenderOption
   final String renderOption;
+
+  /// Determines how input data should be interpreted.
+  /// https://developers.google.com/sheets/api/reference/rest/v4/ValueInputOption
   final String inputOption;
 
   Spreadsheet._(
@@ -258,7 +268,7 @@ class Spreadsheet {
   ///
   /// To create [requests] you can use official [googleapis library](https://pub.dev/packages/googleapis)
   ///
-  /// Returns the [http.Response>] of batchUpdate request.
+  /// Returns the [Response] of batchUpdate request.
   /// [About batchUpdate response](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/response)
   ///
   /// Throws [GSheetsException]
@@ -274,7 +284,7 @@ class Spreadsheet {
   Future<bool> refresh() async {
     final response = await _client.get('$_sheetsEndpoint$id');
     if (response.statusCode == 200) {
-      final sheets = (jsonDecode(response.body)['sheets'] as List)
+      final newSheets = (jsonDecode(response.body)['sheets'] as List)
           .where(gridSheetsFilter)
           .map((json) => Worksheet._fromJson(
                 json,
@@ -284,8 +294,30 @@ class Spreadsheet {
                 inputOption,
               ))
           .toList();
-      this.sheets.clear();
-      this.sheets.addAll(sheets);
+      // removing deleted sheets
+      final newIds = newSheets.map((s) => s.id).toSet();
+      final oldIds = sheets.map((s) => s.id).toSet();
+      final deleted = oldIds.difference(newIds);
+      for (final id in deleted) {
+        sheets.removeWhere((s) => s.id == id);
+      }
+      // adding and updating sheets
+      for (final sheet in newSheets) {
+        final changed = sheets.firstWhere(
+          (s) => s.id == sheet.id,
+          orElse: () => null,
+        );
+        if (changed == null) {
+          // adding new sheet
+          sheets.add(sheet);
+        } else {
+          // updating old sheet
+          changed._title = sheet._title;
+          changed._index = sheet._index;
+          changed._rowCount = sheet._rowCount;
+          changed._columnCount = sheet._columnCount;
+        }
+      }
       return true;
     }
     return false;
@@ -356,6 +388,42 @@ class Spreadsheet {
     if (addSheetJson == null) return null;
     final ws = Worksheet._fromJson(
       addSheetJson['addSheet'],
+      _client,
+      id,
+      renderOption,
+      inputOption,
+    );
+    sheets.forEach((sheet) => sheet._incrementIndex(ws.index - 1));
+    sheets.add(ws);
+    return ws;
+  }
+
+  /// Copies [Worksheet] from another spreadsheet (the name of the copy will
+  /// be "Copy of {title of copied sheet}").
+  ///
+  /// [spreadsheetId] - source spreadsheet id
+  /// [sheetId] - id of the worksheet to copy
+  ///
+  /// Provided `credentialsJson` has to have permission to [spreadsheetId].
+  ///
+  /// Returns Future [Worksheet] in case of success.
+  ///
+  /// Throws [GSheetsException].
+  Future<Worksheet> addFromSpreadsheet(
+    String spreadsheetId,
+    int sheetId,
+  ) async {
+    if (isNullOrEmpty(spreadsheetId) || spreadsheetId == id) {
+      throw GSheetsException('invalid spreadsheetId ($spreadsheetId)');
+    }
+    final response = await _client.post(
+      '$_sheetsEndpoint$spreadsheetId/sheets/$sheetId:copyTo',
+      body: jsonEncode({'destinationSpreadsheetId': id}),
+    );
+    checkResponse(response);
+    final json = {'properties': jsonDecode(response.body)};
+    final ws = Worksheet._fromJson(
+      json,
       _client,
       id,
       renderOption,
@@ -531,11 +599,23 @@ enum PermRole { owner, writer, reader }
 
 /// Representation of a permission.
 class Permission {
+  /// The ID of this [Permission]. This is a unique identifier for the grantee.
   final String id;
+
+  /// The "pretty" name of the value of the [Permission].
   final String name;
+
+  /// The email address of the user or group to which this permission refers.
   final String email;
+
+  /// The type of the grantee (user, group, domain, anyone).
   final String type;
+
+  /// The role granted by this permission (owner, organizer, fileOrganizer,
+  /// writer, commenter, reader).
   final String role;
+
+  /// Whether the account associated with this permission has been deleted.
   final bool deleted;
 
   static const _typeUser = 'user';
@@ -672,6 +752,11 @@ class Worksheet {
     );
   }
 
+  @override
+  String toString() {
+    return 'Worksheet{spreadsheetId: $spreadsheetId, id: $id, title: $_title, index: $_index, rowCount: $_rowCount, columnCount: $_columnCount}';
+  }
+
   /// Updates title of this [Worksheet].
   ///
   /// Returns Future `true` in case of success.
@@ -694,6 +779,28 @@ class Worksheet {
     ]);
     _title = title;
     return true;
+  }
+
+  /// Copies this [Worksheet] to another spreadsheet (the name of the copy will
+  /// be "Copy of [title]").
+  ///
+  /// [spreadsheetId] - destination spreadsheet id.
+  ///
+  /// Provided `credentialsJson` has to have permission to [spreadsheetId].
+  ///
+  /// Returns Future `true` in case of success.
+  ///
+  /// Throws [GSheetsException].
+  Future<bool> copyTo(String spreadsheetId) async {
+    if (isNullOrEmpty(spreadsheetId) || spreadsheetId == this.spreadsheetId) {
+      throw GSheetsException('invalid spreadsheetId ($spreadsheetId)');
+    }
+    final response = await _client.post(
+      '$_sheetsEndpoint${this.spreadsheetId}/sheets/$id:copyTo',
+      body: jsonEncode({'destinationSpreadsheetId': spreadsheetId}),
+    );
+    checkResponse(response);
+    return response.statusCode == 200;
   }
 
   /// Expands [Worksheet] by adding new rows/columns to the end of the sheet.
@@ -1105,11 +1212,9 @@ class Worksheet {
       max(column, column + count - 1),
     );
     final fromLabel = getColumnLetter(column);
-    final to = length > 0 ? row + length - 1 : '';
+    final to = length > 0 ? row + length - 1 : gsheetsCellsLimit;
     await expand;
-    final toLabel = count > 0
-        ? getColumnLetter(column + count - 1)
-        : getColumnLetter(columnCount);
+    final toLabel = count > 0 ? getColumnLetter(column + count - 1) : '';
     return "'$_title'!$fromLabel${row}:$toLabel$to";
   }
 
@@ -1126,7 +1231,7 @@ class Worksheet {
     final label = getColumnLetter(column);
     final toLabel = length > 0 ? getColumnLetter(column + length - 1) : '';
     await expand;
-    final toRow = count > 0 ? row + count - 1 : rowCount;
+    final toRow = count > 0 ? row + count - 1 : gsheetsCellsLimit;
     return "'$_title'!${label}${row}:$toLabel$toRow";
   }
 
