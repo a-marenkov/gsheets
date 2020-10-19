@@ -1,4 +1,8 @@
-## 0.2.5-dev.1
+## 0.2.6
+
+- Updated dependencies
+
+## 0.2.5
 
 - Added `addFromSpreadsheet` method to `Spreadsheet` that copies worksheet from another spreadsheet;
 - Added `copyTo` method to `Worksheet` that copies it to another spreadsheet;
