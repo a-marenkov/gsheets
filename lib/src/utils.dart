@@ -131,6 +131,19 @@ int maxLength(List<List> lists, [int atLeast = 0]) {
   return length;
 }
 
+void appendIfShorter<T>(
+  List<List<T>> lists,
+  int length,
+  T appendix,
+) {
+  for (final list in lists) {
+    final dif = length - list.length;
+    if (dif > 0) {
+      list.addAll(List.generate(dif, (_) => appendix));
+    }
+  }
+}
+
 bool isNullOrEmpty(dynamic data) => data == null || data.isEmpty;
 
 bool gridSheetsFilter(json) => json['properties']['sheetType'] == 'GRID';

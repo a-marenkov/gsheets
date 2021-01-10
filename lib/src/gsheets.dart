@@ -1138,9 +1138,12 @@ class Worksheet {
     final values = jsonDecode(response.body)['values'] as List;
     if (values == null) return <List<String>>[];
     final list = <List<String>>[];
-    for (var sublist in values) {
+    var maxLength = 0;
+    for (final sublist in values) {
       list.add((sublist as List)?.map(parseValue)?.toList() ?? <String>[]);
+      maxLength = max(maxLength, sublist?.length ?? 0);
     }
+    appendIfShorter(list, maxLength, '');
     return list;
   }
 
