@@ -1,3 +1,7 @@
+## 0.3.0-dev.1
+
+- **Breaking change** - `allRows` and `allColumns` always return lists with even lengths (if the value for the cell is absent, empty string is appended) 
+
 ## 0.2.6
 
 - Updated dependencies
