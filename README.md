@@ -8,10 +8,6 @@ Basic usage see [example][example]. For more advanced examples, check out follow
 
 If you don't know where to find the credentials, i recommend you to read following article [How To Get Credentials for Google Sheets][credentials].
 
-## Upcoming
-
-**0.3._** - will be added class Table that holds mutable rows and columns and has a sync method.
-
 ## Features and bugs
 
 Please file feature requests and bugs at the [issue tracker][tracker].
