@@ -1,4 +1,4 @@
-# Gsheets :page_facing_up:
+# Gsheets with Dart :page_facing_up:
 
 A library for working with Google Sheets API v4.
 
@@ -107,16 +107,16 @@ void main() async {
 <img src="https://github.com/WilliBobadilla/gsheets/blob/example_flutter/media/screenshoots/4.jpeg"  width="25%" height="35%" />
 </p>
 
-## Upcoming
+## Upcoming :rocket:
 
 **0.3.\_** - will be added class Table that holds mutable rows and columns and has a sync method.
 
-## Features and bugs
+## Features and bugs :beetle:
 
 Please file feature requests and bugs at the [issue tracker][tracker].
 
 [tracker]: https://github.com/a-marenkov/gsheets/issues
-[example]: https://pub.dev/packages/gsheets#-example-tab-
+[example]: https://github.com/a-marenkov/gsheets/tree/master/example
 [credentials]: https://medium.com/@a.marenkov/how-to-get-credentials-for-google-sheets-456b7e88c430
 [tutorial]: https://medium.com/@a.marenkov/dart-working-with-google-sheets-793ed322daa0
 [example_gsheets]: https://github.com/WilliBobadilla/gsheets/tree/example_flutter/example_gsheets
