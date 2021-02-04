@@ -1,16 +1,16 @@
-# example_gsheets
+# example_gsheets :muscle:
 
-A new Flutter project.
+Example of the use of gsheets with flutter.
 
-## Getting Started
+## Description :page_facing_up:
 
-This project is a starting point for a Flutter application.
+It has a filter, it can filter by name, and also you can add values to the sheet, is a basic example to know how you can use with you flutter projects.
 
-A few resources to get you started if this is your first Flutter project:
+# Screenshoots :iphone:
 
-- [Lab: Write your first Flutter app](https://flutter.dev/docs/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://flutter.dev/docs/cookbook)
-
-For help getting started with Flutter, view our
-[online documentation](https://flutter.dev/docs), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+<p float="left">
+<img src="https://github.com/WilliBobadilla/gsheets/blob/example_flutter/media/screenshoots/1.jpeg"  width="25%" height="35%" />
+<img src="https://github.com/WilliBobadilla/gsheets/blob/example_flutter/media/screenshoots/2.jpeg"  width="25%" height="35%" />
+<img src="https://github.com/WilliBobadilla/gsheets/blob/example_flutter/media/screenshoots/3.jpeg"  width="25%" height="35%" />
+<img src="https://github.com/WilliBobadilla/gsheets/blob/example_flutter/media/screenshoots/4.jpeg"  width="25%" height="35%" />
+</p>
