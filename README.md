@@ -100,6 +100,12 @@ void main() async {
 ```
 
 4. Of course, you can use with flutter, you can check the [example_gsheets] folder, basically you can read data and also write in the sheet, here the screenshots.
+<p float="left">
+<img src="https://github.com/WilliBobadilla/gsheets/blob/example_flutter/media/screenshoots/1.jpeg"  width="25%" height="35%" />
+<img src="https://github.com/WilliBobadilla/gsheets/blob/example_flutter/media/screenshoots/2.jpeg"  width="25%" height="35%" />
+<img src="https://github.com/WilliBobadilla/gsheets/blob/example_flutter/media/screenshoots/3.jpeg"  width="25%" height="35%" />
+<img src="https://github.com/WilliBobadilla/gsheets/blob/example_flutter/media/screenshoots/4.jpeg"  width="25%" height="35%" />
+</p>
 
 ## Upcoming
 
@@ -113,3 +119,4 @@ Please file feature requests and bugs at the [issue tracker][tracker].
 [example]: https://pub.dev/packages/gsheets#-example-tab-
 [credentials]: https://medium.com/@a.marenkov/how-to-get-credentials-for-google-sheets-456b7e88c430
 [tutorial]: https://medium.com/@a.marenkov/dart-working-with-google-sheets-793ed322daa0
+[example_gsheets]: https://github.com/WilliBobadilla/gsheets/tree/example_flutter/example_gsheets
