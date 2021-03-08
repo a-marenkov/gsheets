@@ -1,6 +1,6 @@
 name: example
 description: A sample application as an example for gsheets.
-version: 0.1.0
+version: 1.0.0
 homepage: https://github.com/a-marenkov/gsheets/tree/master/example
 
 environment:

@@ -1,10 +1,10 @@
 import 'dart:convert';
 
-import 'package:googleapis/sheets/v4.dart' as v4;
-import 'package:googleapis_auth/auth.dart';
+import 'package:collection/collection.dart' show IterableExtension;
+import 'package:googleapis/sheets/v4.dart';
+import 'package:googleapis_auth/googleapis_auth.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:http/http.dart' as http;
-import 'package:meta/meta.dart';
 import 'dart:math';
 
 import 'utils.dart';
@@ -30,7 +30,7 @@ class GSheetsException implements Exception {
 
 /// Manages googleapis auth and [Spreadsheet] fetching.
 class GSheets {
-  Future<AutoRefreshingAuthClient> _client;
+  Future<AutoRefreshingAuthClient>? _client;
   final ServiceAccountCredentials _credentials;
   final List<String> _scopes;
 
@@ -44,25 +44,22 @@ class GSheets {
   /// [scopes] - optional (defaults to `[SpreadsheetsScope, DriveScope]`).
   GSheets(
     credentialsJson, {
-    String impersonatedUser,
+    String? impersonatedUser,
     List<String> scopes = const [
-      v4.SheetsApi.SpreadsheetsScope,
-      v4.SheetsApi.DriveScope,
+      SheetsApi.spreadsheetsScope,
+      SheetsApi.driveScope,
     ],
   })  : _scopes = scopes,
         _credentials = ServiceAccountCredentials.fromJson(
           credentialsJson,
           impersonatedUser: impersonatedUser,
-        ) {
-    // pre-initializes client
-    client;
-  }
+        );
 
   /// Returns Future [AutoRefreshingAuthClient] - autorefreshing,
   /// authenticated HTTP client.
   Future<AutoRefreshingAuthClient> get client {
     _client ??= clientViaServiceAccount(_credentials, _scopes);
-    return _client;
+    return _client!;
   }
 
   /// Creates a new [Spreadsheet], and returns it.
@@ -86,8 +83,8 @@ class GSheets {
   Future<Spreadsheet> createSpreadsheet(
     String title, {
     List<String> worksheetTitles = const <String>['Sheet1'],
-    ValueRenderOption render = ValueRenderOption.unformatted_value,
-    ValueInputOption input = ValueInputOption.user_entered,
+    ValueRenderOption render = ValueRenderOption.unformattedValue,
+    ValueInputOption input = ValueInputOption.userEntered,
   }) async {
     final client = await this.client.catchError((_) {
       // retry once on error
@@ -95,7 +92,7 @@ class GSheets {
       return this.client;
     });
     final worksheets = worksheetTitles
-        ?.map((title) => {
+        .map((title) => {
               'properties': {
                 'title': title,
                 'sheetType': 'GRID',
@@ -105,14 +102,18 @@ class GSheets {
                 }
               },
             })
-        ?.toList();
-    final response = await client.post(_sheetsEndpoint,
-        body: jsonEncode({
+        .toList();
+    final response = await client.post(
+      Uri.parse(_sheetsEndpoint),
+      body: jsonEncode(
+        {
           'properties': {
             'title': title,
           },
           'sheets': worksheets,
-        }));
+        },
+      ),
+    );
     checkResponse(response);
     final renderOption = _parseRenderOption(render);
     final inputOption = _parseInputOption(input);
@@ -149,15 +150,17 @@ class GSheets {
   /// Throws GSheetsException if does not have permission.
   Future<Spreadsheet> spreadsheet(
     String spreadsheetId, {
-    ValueRenderOption render = ValueRenderOption.unformatted_value,
-    ValueInputOption input = ValueInputOption.user_entered,
+    ValueRenderOption render = ValueRenderOption.unformattedValue,
+    ValueInputOption input = ValueInputOption.userEntered,
   }) async {
     final client = await this.client.catchError((_) {
       // retry once on error
       _client = null;
       return this.client;
     });
-    final response = await client.get('$_sheetsEndpoint$spreadsheetId');
+    final response = await client.get(
+      Uri.parse('$_sheetsEndpoint$spreadsheetId'),
+    );
     checkResponse(response);
     final renderOption = _parseRenderOption(render);
     final inputOption = _parseInputOption(input);
@@ -182,7 +185,7 @@ class GSheets {
 
   static String _parseRenderOption(ValueRenderOption option) {
     switch (option) {
-      case ValueRenderOption.formatted_value:
+      case ValueRenderOption.formattedValue:
         return 'FORMATTED_VALUE';
       case ValueRenderOption.formula:
         return 'FORMULA';
@@ -193,7 +196,7 @@ class GSheets {
 
   static String _parseInputOption(ValueInputOption option) {
     switch (option) {
-      case ValueInputOption.user_entered:
+      case ValueInputOption.userEntered:
         return 'USER_ENTERED';
       default:
         return 'RAW';
@@ -223,7 +226,7 @@ class GSheets {
     List<Map<String, dynamic>> requests,
   ) async {
     final response = await client.post(
-      '$_sheetsEndpoint$spreadsheetId:batchUpdate',
+      Uri.parse('$_sheetsEndpoint$spreadsheetId:batchUpdate'),
       body: jsonEncode({'requests': requests}),
     );
     checkResponse(response);
@@ -231,8 +234,8 @@ class GSheets {
   }
 }
 
-enum ValueRenderOption { formatted_value, unformatted_value, formula }
-enum ValueInputOption { user_entered, raw }
+enum ValueRenderOption { formattedValue, unformattedValue, formula }
+enum ValueInputOption { userEntered, raw }
 
 /// Representation of a [Spreadsheet], manages [Worksheet]s.
 class Spreadsheet {
@@ -282,7 +285,9 @@ class Spreadsheet {
   ///
   /// Returns Future `true` in case of success.
   Future<bool> refresh() async {
-    final response = await _client.get('$_sheetsEndpoint$id');
+    final response = await _client.get(
+      Uri.parse('$_sheetsEndpoint$id'),
+    );
     if (response.statusCode == 200) {
       final newSheets = (jsonDecode(response.body)['sheets'] as List)
           .where(gridSheetsFilter)
@@ -303,9 +308,8 @@ class Spreadsheet {
       }
       // adding and updating sheets
       for (final sheet in newSheets) {
-        final changed = sheets.firstWhere(
+        final changed = sheets.firstWhereOrNull(
           (s) => s.id == sheet.id,
-          orElse: () => null,
         );
         if (changed == null) {
           // adding new sheet
@@ -326,30 +330,27 @@ class Spreadsheet {
   /// Returns [Worksheet] with [title].
   ///
   /// Returns `null` if [Worksheet] with [title] not found.
-  Worksheet worksheetByTitle(String title) {
-    return sheets.firstWhere(
+  Worksheet? worksheetByTitle(String title) {
+    return sheets.firstWhereOrNull(
       (sheet) => sheet._title == title,
-      orElse: () => null,
     );
   }
 
   /// Returns [Worksheet] with [id].
   ///
   /// Returns `null` if [Worksheet] with [id] not found.
-  Worksheet worksheetById(int id) {
-    return sheets.firstWhere(
+  Worksheet? worksheetById(int id) {
+    return sheets.firstWhereOrNull(
       (sheet) => sheet.id == id,
-      orElse: () => null,
     );
   }
 
   /// Returns [Worksheet] with [index].
   ///
   /// Returns `null` if [Worksheet] with [index] not found.
-  Worksheet worksheetByIndex(int index) {
-    return sheets.firstWhere(
+  Worksheet? worksheetByIndex(int index) {
+    return sheets.firstWhereOrNull(
       (sheet) => sheet.index == index,
-      orElse: () => null,
     );
   }
 
@@ -363,7 +364,7 @@ class Spreadsheet {
   ///
   /// Throws [GSheetsException] if sheet with [title] already exists, or
   /// if [rows] or [columns] value is invalid.
-  Future<Worksheet> addWorksheet(
+  Future<Worksheet?> addWorksheet(
     String title, {
     int rows = defaultRowsCount,
     int columns = defaultColumnCount,
@@ -384,7 +385,7 @@ class Spreadsheet {
         }
       }
     ]);
-    final addSheetJson = (jsonDecode(response.body)['replies'] as List)?.first;
+    final addSheetJson = (jsonDecode(response.body)['replies'] as List?)?.first;
     if (addSheetJson == null) return null;
     final ws = Worksheet._fromJson(
       addSheetJson['addSheet'],
@@ -417,7 +418,7 @@ class Spreadsheet {
       throw GSheetsException('invalid spreadsheetId ($spreadsheetId)');
     }
     final response = await _client.post(
-      '$_sheetsEndpoint$spreadsheetId/sheets/$sheetId:copyTo',
+      Uri.parse('$_sheetsEndpoint$spreadsheetId/sheets/$sheetId:copyTo'),
       body: jsonEncode({'destinationSpreadsheetId': id}),
     );
     checkResponse(response);
@@ -440,10 +441,10 @@ class Spreadsheet {
   ///
   /// Throws [GSheetsException] if sheet with [title] already exists,
   /// or [index] is invalid.
-  Future<Worksheet> copyWorksheet(
+  Future<Worksheet?> copyWorksheet(
     Worksheet ws,
     String title, {
-    int index,
+    int? index,
   }) async {
     except((index ?? 0) < 0, 'invalid index ($index)');
     final response = await GSheets.batchUpdate(_client, id, [
@@ -457,7 +458,7 @@ class Spreadsheet {
       }
     ]);
     final duplicateSheetJson =
-        (jsonDecode(response.body)['replies'] as List)?.first;
+        (jsonDecode(response.body)['replies'] as List?)?.first;
     if (duplicateSheetJson == null) return null;
     final duplicate = Worksheet._fromJson(
       duplicateSheetJson['duplicateSheet'],
@@ -494,11 +495,13 @@ class Spreadsheet {
   /// Throws Exception if [GSheets]'s scopes does not include DriveScope.
   /// Throws GSheetsException if DriveScope is not configured.
   Future<List<Permission>> permissions() async {
-    final response = await _client.get('$_filesEndpoint$id/permissions');
+    final response = await _client.get(
+      Uri.parse('$_filesEndpoint$id/permissions'),
+    );
     checkResponse(response);
-    return (jsonDecode(response.body)['items'] as List)
+    return (jsonDecode(response.body)['items'] as List?)
             ?.map((json) => Permission._fromJson(json))
-            ?.toList() ??
+            .toList() ??
         <Permission>[];
   }
 
@@ -512,15 +515,14 @@ class Spreadsheet {
   ///
   /// Throws Exception if [GSheets]'s scopes does not include DriveScope.
   /// Throws GSheetsException if DriveScope is not configured.
-  Future<Permission> permissionByEmail(String email) async {
-    final response = await _client.get('$_filesEndpoint$id/permissions');
+  Future<Permission?> permissionByEmail(String email) async {
+    final response = await _client.get(
+      Uri.parse('$_filesEndpoint$id/permissions'),
+    );
     checkResponse(response);
-    return (jsonDecode(response.body)['items'] as List)
+    return (jsonDecode(response.body)['items'] as List?)
         ?.map((json) => Permission._fromJson(json))
-        ?.firstWhere(
-          (it) => it.email == email,
-          orElse: () => null,
-        );
+        .firstWhereOrNull((it) => it.email == email);
   }
 
   /// Shares [Spreadsheet].
@@ -543,7 +545,7 @@ class Spreadsheet {
     bool withLink = false,
   }) async {
     final response = await _client.post(
-      '$_filesEndpoint$id/permissions',
+      Uri.parse('$_filesEndpoint$id/permissions'),
       body: jsonEncode({
         'value': user,
         'type': Permission._parseType(type),
@@ -566,7 +568,7 @@ class Spreadsheet {
   /// Throws GSheetsException if DriveScope is not configured.
   Future<bool> revokePermissionById(String id) async {
     final response = await _client.delete(
-      '$_filesEndpoint${this.id}/permissions/$id',
+      Uri.parse('$_filesEndpoint$id/permissions'),
     );
     checkResponse(response);
     return response.statusCode == 204;
@@ -627,12 +629,12 @@ class Permission {
   static const _roleReader = 'reader';
 
   Permission._({
-    this.id,
-    this.name,
-    this.email,
-    this.type,
-    this.role,
-    this.deleted,
+    required this.id,
+    required this.name,
+    required this.email,
+    required this.type,
+    required this.role,
+    required this.deleted,
   });
 
   static String _parseType(PermType type) {
@@ -646,7 +648,6 @@ class Permission {
       case PermType.any:
         return _typeAny;
     }
-    return null;
   }
 
   static String _parseRole(PermRole role) {
@@ -658,7 +659,6 @@ class Permission {
       case PermRole.reader:
         return _roleReader;
     }
-    return null;
   }
 
   factory Permission._fromJson(Map<String, dynamic> json) {
@@ -691,8 +691,6 @@ class Worksheet {
   final String inputOption;
   String _title;
   int _index;
-  WorksheetAsCells _cells;
-  WorksheetAsValues _values;
   int _rowCount;
   int _columnCount;
 
@@ -709,28 +707,22 @@ class Worksheet {
   String get title => _title;
 
   /// Interactor for working with [Worksheet] cells as [String] values.
-  WorksheetAsValues get values {
-    _values ??= WorksheetAsValues._(this);
-    return _values;
-  }
+  late WorksheetAsValues values = WorksheetAsValues._(this);
 
   /// Interactor for working with [Worksheet] cells as [Cell] objects.
-  WorksheetAsCells get cells {
-    _cells ??= WorksheetAsCells._(this);
-    return _cells;
-  }
+  late WorksheetAsCells cells = WorksheetAsCells._(this);
 
   Worksheet._(
     this._client,
     this.spreadsheetId,
     this.id,
     this._title,
-    this._index, [
+    this._index,
     this._rowCount,
     this._columnCount,
     this.renderOption,
     this.inputOption,
-  ]);
+  );
 
   factory Worksheet._fromJson(
     Map<String, dynamic> sheetJson,
@@ -795,8 +787,9 @@ class Worksheet {
     if (isNullOrEmpty(spreadsheetId) || spreadsheetId == this.spreadsheetId) {
       throw GSheetsException('invalid spreadsheetId ($spreadsheetId)');
     }
+
     final response = await _client.post(
-      '$_sheetsEndpoint${this.spreadsheetId}/sheets/$id:copyTo',
+      Uri.parse('$_sheetsEndpoint${this.spreadsheetId}/sheets/$id:copyTo'),
       body: jsonEncode({'destinationSpreadsheetId': spreadsheetId}),
     );
     checkResponse(response);
@@ -1010,8 +1003,8 @@ class Worksheet {
   ///
   /// Throws [GSheetsException].
   Future<bool> moveColumn({
-    @required int from,
-    @required int to,
+    required int from,
+    required int to,
     int count = 1,
   }) async {
     return _moveDimension(DIMEN_COLUMNS, from, to, count);
@@ -1031,17 +1024,17 @@ class Worksheet {
   ///
   /// Throws [GSheetsException].
   Future<bool> moveRow({
-    @required int from,
-    @required int to,
+    required int from,
+    required int to,
     int count = 1,
   }) async {
     return _moveDimension(DIMEN_ROWS, from, to, count);
   }
 
   Future<bool> _clear(String range) async {
-    var encodedRange = Uri.encodeComponent(range);
+    final encodedRange = Uri.encodeComponent(range);
     final response = await _client.post(
-      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange:clear',
+      Uri.parse('$_sheetsEndpoint$spreadsheetId/values/$encodedRange:clear'),
     );
     checkResponse(response);
     return response.statusCode == 200;
@@ -1120,42 +1113,49 @@ class Worksheet {
   }
 
   Future<List<String>> _get(String range, String dimension) async {
-    var encodedRange = Uri.encodeComponent(range);
+    final encodedRange = Uri.encodeComponent(range);
     final response = await _client.get(
-      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption',
+      Uri.parse(
+        '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption',
+      ),
     );
     checkResponse(response);
-    final list = (jsonDecode(response.body)['values'] as List)?.first as List;
+    final list = (jsonDecode(response.body)['values'] as List?)?.first as List?;
     return list?.map(parseValue)?.toList() ?? <String>[];
   }
 
   Future<List<List<String>>> _getAll(String range, String dimension) async {
-    var encodedRange = Uri.encodeComponent(range);
+    final encodedRange = Uri.encodeComponent(range);
+
     final response = await _client.get(
-      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption',
+      Uri.parse(
+        '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption',
+      ),
     );
     checkResponse(response);
-    final values = jsonDecode(response.body)['values'] as List;
+    final values = jsonDecode(response.body)['values'] as List?;
     if (values == null) return <List<String>>[];
     final list = <List<String>>[];
     var maxLength = 0;
     for (final sublist in values) {
-      list.add((sublist as List)?.map(parseValue)?.toList() ?? <String>[]);
-      maxLength = max(maxLength, sublist?.length ?? 0);
+      list.add((sublist as List).map(parseValue).toList());
+      maxLength = max(maxLength, sublist.length);
     }
     appendIfShorter(list, maxLength, '');
     return list;
   }
 
   Future<bool> _update({
-    List<dynamic> values,
-    String majorDimension,
-    String range,
+    required List<dynamic> values,
+    required String majorDimension,
+    required String range,
   }) async {
     checkNotNested(values);
-    var encodedRange = Uri.encodeComponent(range);
+    final encodedRange = Uri.encodeComponent(range);
     final response = await _client.put(
-      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?valueInputOption=$inputOption',
+      Uri.parse(
+        '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?valueInputOption=$inputOption',
+      ),
       body: jsonEncode(
         {
           'range': range,
@@ -1169,13 +1169,15 @@ class Worksheet {
   }
 
   Future<bool> _updateAll({
-    List<List<dynamic>> values,
-    String majorDimension,
-    String range,
+    required List<List<dynamic>> values,
+    required String majorDimension,
+    required String range,
   }) async {
-    var encodedRange = Uri.encodeComponent(range);
+    final encodedRange = Uri.encodeComponent(range);
     final response = await _client.put(
-      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?valueInputOption=$inputOption',
+      Uri.parse(
+        '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?valueInputOption=$inputOption',
+      ),
       body: jsonEncode(
         {
           'range': range,
@@ -1193,7 +1195,7 @@ class Worksheet {
     final label = getColumnLetter(column);
     final to = length > 0 ? '${row + length - 1}' : '';
     await expand;
-    return "'$_title'!$label${row}:$label$to";
+    return "'$_title'!$label$row:$label$to";
   }
 
   Future<String> _rowRange(int row, int column, int length) async {
@@ -1201,7 +1203,7 @@ class Worksheet {
     final label = getColumnLetter(column);
     final labelTo = length > 0 ? getColumnLetter(column + length - 1) : '';
     await expand;
-    return "'$_title'!${label}${row}:${labelTo}${row}";
+    return "'$_title'!$label$row:$labelTo$row";
   }
 
   Future<String> _allColumnsRange(
@@ -1218,7 +1220,7 @@ class Worksheet {
     final to = length > 0 ? row + length - 1 : gsheetsCellsLimit;
     await expand;
     final toLabel = count > 0 ? getColumnLetter(column + count - 1) : '';
-    return "'$_title'!$fromLabel${row}:$toLabel$to";
+    return "'$_title'!$fromLabel$row:$toLabel$to";
   }
 
   Future<String> _allRowsRange(
@@ -1235,7 +1237,7 @@ class Worksheet {
     final toLabel = length > 0 ? getColumnLetter(column + length - 1) : '';
     await expand;
     final toRow = count > 0 ? row + count - 1 : gsheetsCellsLimit;
-    return "'$_title'!${label}${row}:$toLabel$toRow";
+    return "'$_title'!$label$row:$toLabel$toRow";
   }
 
   Future<bool> _expand(int rows, int cols) async {
@@ -1272,15 +1274,11 @@ class Worksheet {
 /// Interactor for working with [Worksheet] cells as [String] values.
 class WorksheetAsValues {
   final Worksheet _ws;
-  ValuesMapper _map;
 
   WorksheetAsValues._(this._ws);
 
   /// Mapper for [Worksheet]'s values.
-  ValuesMapper get map {
-    _map ??= ValuesMapper._(this);
-    return _map;
-  }
+  late ValuesMapper map = ValuesMapper._(this);
 
   /// Fetches specified column.
   ///
@@ -1356,7 +1354,7 @@ class WorksheetAsValues {
   /// Returns Future `null` if there [key] is not found.
   ///
   /// Throws [GSheetsException].
-  Future<List<String>> columnByKey(
+  Future<List<String>?> columnByKey(
     dynamic key, {
     int fromRow = 2,
     int length = -1,
@@ -1391,7 +1389,7 @@ class WorksheetAsValues {
   /// Returns Future `null` if there [key] is not found.
   ///
   /// Throws [GSheetsException].
-  Future<List<String>> rowByKey(
+  Future<List<String>?> rowByKey(
     dynamic key, {
     int fromColumn = 2,
     int length = -1,
@@ -1426,7 +1424,7 @@ class WorksheetAsValues {
   /// Returns Future `null` if there are no columns.
   ///
   /// Throws [GSheetsException].
-  Future<List<String>> lastColumn({
+  Future<List<String>?> lastColumn({
     int fromRow = 1,
     int length = -1,
     bool inRange = false,
@@ -1468,7 +1466,7 @@ class WorksheetAsValues {
   /// Returns Future `null` if there are no rows.
   ///
   /// Throws [GSheetsException].
-  Future<List<String>> lastRow({
+  Future<List<String>?> lastRow({
     int fromColumn = 1,
     int length = -1,
     bool inRange = false,
@@ -1582,8 +1580,8 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<String> value({
-    @required int column,
-    @required int row,
+    required int column,
+    required int row,
   }) async {
     check('column', column);
     check('row', row);
@@ -1604,9 +1602,9 @@ class WorksheetAsValues {
   /// Returns `null` if either [rowKey] or [columnKey] not found.
   ///
   /// Throws [GSheetsException].
-  Future<String> valueByKeys({
-    @required dynamic rowKey,
-    @required dynamic columnKey,
+  Future<String?> valueByKeys({
+    required dynamic rowKey,
+    required dynamic columnKey,
   }) async {
     final rKey = parseKey(rowKey, 'row');
     final cKey = parseKey(columnKey, 'column');
@@ -1634,8 +1632,8 @@ class WorksheetAsValues {
   /// Throws [GSheetsException].
   Future<bool> insertValue(
     dynamic value, {
-    @required int column,
-    @required int row,
+    required int column,
+    required int row,
   }) async {
     check('column', column);
     check('row', row);
@@ -1662,8 +1660,8 @@ class WorksheetAsValues {
   /// Throws [GSheetsException].
   Future<bool> insertValueByKeys(
     dynamic value, {
-    @required dynamic columnKey,
-    @required dynamic rowKey,
+    required dynamic columnKey,
+    required dynamic rowKey,
     bool eager = true,
   }) async {
     final rKey = parseKey(rowKey, 'row');
@@ -2115,8 +2113,8 @@ class ValuesMapper {
       fromRow: fromRow,
       length: length,
     );
-    final keys = get(columns, at: mapTo - 1, or: <String>[]);
-    final values = get(columns, at: column - 1, or: <String>[]);
+    final keys = get(columns, at: mapTo - 1, or: <String>[])!;
+    final values = get(columns, at: column - 1, or: <String>[])!;
     return _wrap(keys, values);
   }
 
@@ -2154,8 +2152,8 @@ class ValuesMapper {
       fromColumn: fromColumn,
       length: length,
     );
-    final keys = get(rows, at: mapTo - 1, or: <String>[]);
-    final values = get(rows, at: row - 1, or: <String>[]);
+    final keys = get(rows, at: mapTo - 1, or: <String>[])!;
+    final values = get(rows, at: row - 1, or: <String>[])!;
     return _wrap(keys, values);
   }
 
@@ -2181,7 +2179,7 @@ class ValuesMapper {
   /// Returns column as Future [Map] of [String] to [String].
   ///
   /// Throws [GSheetsException].
-  Future<Map<String, String>> columnByKey(
+  Future<Map<String, String>?> columnByKey(
     dynamic key, {
     int fromRow = 2,
     int length = -1,
@@ -2233,7 +2231,7 @@ class ValuesMapper {
   /// Returns row as Future [Map] of [String] to [String].
   ///
   /// Throws [GSheetsException].
-  Future<Map<String, String>> rowByKey(
+  Future<Map<String, String>?> rowByKey(
     dynamic key, {
     int fromColumn = 2,
     int length = -1,
@@ -2285,7 +2283,7 @@ class ValuesMapper {
   /// Returns Future `null` if there are less than 2 columns.
   ///
   /// Throws [GSheetsException].
-  Future<Map<String, String>> lastColumn({
+  Future<Map<String, String>?> lastColumn({
     int fromRow = 1,
     int length = -1,
     int mapTo = 1,
@@ -2300,8 +2298,8 @@ class ValuesMapper {
       if (columns.length < 2) return null;
       checkMapTo(columns.length, mapTo);
       final column = columns.length;
-      final keys = get(columns, at: mapTo - 1, or: <String>[]);
-      final values = get(columns, at: column - 1, or: <String>[]);
+      final keys = get(columns, at: mapTo - 1, or: <String>[])!;
+      final values = get(columns, at: column - 1, or: <String>[])!;
       return _wrap(keys, values);
     } else {
       check('fromRow', fromRow);
@@ -2310,12 +2308,12 @@ class ValuesMapper {
       checkMapTo(columns.length, mapTo);
       final column = columns.length;
       final keys = extractSublist(
-        get(columns, at: mapTo - 1, or: <String>[]),
+        get(columns, at: mapTo - 1, or: <String>[])!,
         from: fromRow - 1,
         length: length,
       );
       final values = extractSublist(
-        get(columns, at: column - 1, or: <String>[]),
+        get(columns, at: column - 1, or: <String>[])!,
         from: fromRow - 1,
         length: length,
       );
@@ -2345,7 +2343,7 @@ class ValuesMapper {
   /// Returns Future `null` if there are less than 2 rows.
   ///
   /// Throws [GSheetsException].
-  Future<Map<String, String>> lastRow({
+  Future<Map<String, String>?> lastRow({
     int fromColumn = 1,
     int length = -1,
     int mapTo = 1,
@@ -2360,8 +2358,8 @@ class ValuesMapper {
       if (rows.length < 2) return null;
       checkMapTo(rows.length, mapTo);
       final row = rows.length;
-      final keys = get(rows, at: mapTo - 1, or: <String>[]);
-      final values = get(rows, at: row - 1, or: <String>[]);
+      final keys = get(rows, at: mapTo - 1, or: <String>[])!;
+      final values = get(rows, at: row - 1, or: <String>[])!;
       return _wrap(keys, values);
     } else {
       check('fromColumn', fromColumn);
@@ -2370,12 +2368,12 @@ class ValuesMapper {
       checkMapTo(rows.length, mapTo);
       final row = rows.length;
       final keys = extractSublist(
-        get(rows, at: mapTo - 1, or: <String>[]),
+        get(rows, at: mapTo - 1, or: <String>[])!,
         from: fromColumn - 1,
         length: length,
       );
       final values = extractSublist(
-        get(rows, at: row - 1, or: <String>[]),
+        get(rows, at: row - 1, or: <String>[])!,
         from: fromColumn - 1,
         length: length,
       );
@@ -2410,7 +2408,7 @@ class ValuesMapper {
   /// Returns Future `null` if there are less than 2 columns.
   ///
   /// Throws [GSheetsException].
-  Future<List<Map<String, String>>> allColumns({
+  Future<List<Map<String, String>>?> allColumns({
     int fromColumn = 1,
     int fromRow = 1,
     int length = -1,
@@ -2425,7 +2423,7 @@ class ValuesMapper {
     );
     if (columns.length < 2) return null;
     final maps = <Map<String, String>>[];
-    final keys = get(columns, at: mapTo - 1, or: <String>[]);
+    final keys = get(columns, at: mapTo - 1, or: <String>[])!;
     if (keys.isEmpty) return maps;
     final start = min(fromColumn - 1, columns.length);
     final end = count < 1 ? columns.length : min(start + count, columns.length);
@@ -2464,7 +2462,7 @@ class ValuesMapper {
   /// Returns Future `null` if there are less than 2 rows.
   ///
   /// Throws [GSheetsException].
-  Future<List<Map<String, String>>> allRows({
+  Future<List<Map<String, String>>?> allRows({
     int fromRow = 1,
     int fromColumn = 1,
     int length = -1,
@@ -2479,7 +2477,7 @@ class ValuesMapper {
     );
     if (rows.length < 2) return null;
     final maps = <Map<String, String>>[];
-    final keys = get(rows, at: mapTo - 1, or: <String>[]);
+    final keys = get(rows, at: mapTo - 1, or: <String>[])!;
     if (keys.isEmpty) return maps;
     final start = min(fromRow - 1, rows.length);
     final end = count < 1 ? rows.length : min(start + count, rows.length);
@@ -2699,7 +2697,7 @@ class ValuesMapper {
     } else {
       checkMapTo(columnIndex + 1, mapToIndex + 1);
     }
-    final keys = get(columns, at: mapToIndex, or: <String>[]);
+    final keys = get(columns, at: mapToIndex, or: <String>[])!;
     return _insertColumns(
       columnIndex + 1,
       [map],
@@ -3025,7 +3023,7 @@ class ValuesMapper {
     } else {
       checkMapTo(rowIndex + 1, mapToIndex + 1);
     }
-    final keys = get(rows, at: mapToIndex, or: <String>[]);
+    final keys = get(rows, at: mapToIndex, or: <String>[])!;
     return _insertRows(
       rowIndex + 1,
       [map],
@@ -3148,7 +3146,6 @@ class Cell implements Comparable {
   final Worksheet _ws;
   final int row;
   final int column;
-  String _label;
   String value;
   final bool _insertable;
 
@@ -3161,10 +3158,7 @@ class Cell implements Comparable {
   ]);
 
   /// Returns position of a cell in A1 notation.
-  String get label {
-    _label ??= '${getColumnLetter(column)}${row}';
-    return _label;
-  }
+  late String label = '${getColumnLetter(column)}$row';
 
   String get worksheetTitle => _ws._title;
 
@@ -3177,7 +3171,7 @@ class Cell implements Comparable {
     final val = parseValue(value);
     if (this.value == val) return false;
     final posted = await _ws._update(
-      values: [val ?? ''],
+      values: [val],
       range: "'$worksheetTitle'!$label",
       majorDimension: DIMEN_COLUMNS,
     );
@@ -3202,22 +3196,18 @@ class Cell implements Comparable {
 
   @override
   int compareTo(other) {
-    return row + column - other.row - other.column;
+    return row + column - other.row - other.column as int;
   }
 }
 
 /// Interactor for working with [Worksheet] cells as [Cell] objects.
 class WorksheetAsCells {
   final Worksheet _ws;
-  CellsMapper _map;
 
   WorksheetAsCells._(this._ws);
 
   /// Mapper for [Worksheet]'s cells.
-  CellsMapper get map {
-    _map ??= CellsMapper._(this);
-    return _map;
-  }
+  late CellsMapper map = CellsMapper._(this);
 
   List<Cell> _wrapColumn(
     List<String> list,
@@ -3318,7 +3308,7 @@ class WorksheetAsCells {
   /// Returns column as Future [List] of [Cell].
   ///
   /// Throws [GSheetsException].
-  Future<List<Cell>> columnByKey(
+  Future<List<Cell>?> columnByKey(
     dynamic key, {
     int fromRow = 2,
     int length = -1,
@@ -3353,7 +3343,7 @@ class WorksheetAsCells {
   /// Returns row as Future [List] of [Cell].
   ///
   /// Throws [GSheetsException].
-  Future<List<Cell>> rowByKey(
+  Future<List<Cell>?> rowByKey(
     dynamic key, {
     int fromColumn = 2,
     int length = -1,
@@ -3389,7 +3379,7 @@ class WorksheetAsCells {
   /// Returns Future `null` if there are no columns.
   ///
   /// Throws [GSheetsException].
-  Future<List<Cell>> lastColumn({
+  Future<List<Cell>?> lastColumn({
     int fromRow = 1,
     int length = -1,
     bool inRange = false,
@@ -3432,7 +3422,7 @@ class WorksheetAsCells {
   /// Returns Future `null` if there are no rows.
   ///
   /// Throws [GSheetsException].
-  Future<List<Cell>> lastRow({
+  Future<List<Cell>?> lastRow({
     int fromColumn = 1,
     int length = -1,
     bool inRange = false,
@@ -3600,8 +3590,8 @@ class WorksheetAsCells {
   ///
   /// Throws [GSheetsException].
   Future<Cell> cell({
-    @required int row,
-    @required int column,
+    required int row,
+    required int column,
   }) async {
     final value = await _ws.values.value(column: column, row: row);
     return Cell._(_ws, row, column, value, false);
@@ -3620,9 +3610,9 @@ class WorksheetAsCells {
   /// Returns `null` if either [rowKey] or [columnKey] not found.
   ///
   /// Throws [GSheetsException].
-  Future<Cell> cellByKeys({
-    @required dynamic rowKey,
-    @required dynamic columnKey,
+  Future<Cell?> cellByKeys({
+    required dynamic rowKey,
+    required dynamic columnKey,
   }) async {
     final rKey = parseKey(rowKey, 'row');
     final cKey = parseKey(columnKey, 'column');
@@ -3730,8 +3720,8 @@ class CellsMapper {
       fromRow: fromRow,
       length: length,
     );
-    final keys = get(columns, at: mapTo - 1, or: <String>[]);
-    final values = get(columns, at: column - 1, or: <String>[]);
+    final keys = get(columns, at: mapTo - 1, or: <String>[])!;
+    final values = get(columns, at: column - 1, or: <String>[])!;
     return _wrapColumn(keys, values, column, fromRow);
   }
 
@@ -3769,8 +3759,8 @@ class CellsMapper {
       fromColumn: fromColumn,
       length: length,
     );
-    final keys = get(rows, at: mapTo - 1, or: <String>[]);
-    final values = get(rows, at: row - 1, or: <String>[]);
+    final keys = get(rows, at: mapTo - 1, or: <String>[])!;
+    final values = get(rows, at: row - 1, or: <String>[])!;
     return _wrapRow(keys, values, row, fromColumn);
   }
 
@@ -3796,7 +3786,7 @@ class CellsMapper {
   /// Returns column as Future [Map] of [String] to [Cell].
   ///
   /// Throws [GSheetsException].
-  Future<Map<String, Cell>> columnByKey(
+  Future<Map<String, Cell>?> columnByKey(
     dynamic key, {
     int fromRow = 2,
     dynamic mapTo,
@@ -3847,7 +3837,7 @@ class CellsMapper {
   /// Returns row as Future [Map] of [String] to [Cell].
   ///
   /// Throws [GSheetsException].
-  Future<Map<String, Cell>> rowByKey(
+  Future<Map<String, Cell>?> rowByKey(
     dynamic key, {
     int fromColumn = 2,
     dynamic mapTo,
@@ -3898,7 +3888,7 @@ class CellsMapper {
   /// Returns Future `null` if there are less than 2 columns.
   ///
   /// Throws [GSheetsException].
-  Future<Map<String, Cell>> lastColumn({
+  Future<Map<String, Cell>?> lastColumn({
     int fromRow = 1,
     int mapTo = 1,
     int length = -1,
@@ -3913,7 +3903,7 @@ class CellsMapper {
       final column = columns.length;
       if (column < 2) return null;
       checkMapTo(column, mapTo);
-      final keys = get(columns, at: mapTo - 1, or: <String>[]);
+      final keys = get(columns, at: mapTo - 1, or: <String>[])!;
       final values = columns[column - 1];
       return _wrapColumn(keys, values, column, fromRow);
     } else {
@@ -3923,7 +3913,7 @@ class CellsMapper {
       if (column < 2) return null;
       checkMapTo(column, mapTo);
       final keys = extractSublist(
-        get(columns, at: mapTo - 1, or: <String>[]),
+        get(columns, at: mapTo - 1, or: <String>[])!,
         from: fromRow - 1,
         length: length,
       );
@@ -3958,7 +3948,7 @@ class CellsMapper {
   /// Returns Future `null` if there are less than 2 rows.
   ///
   /// Throws [GSheetsException].
-  Future<Map<String, Cell>> lastRow({
+  Future<Map<String, Cell>?> lastRow({
     int fromColumn = 1,
     int mapTo = 1,
     int length = -1,
@@ -3973,7 +3963,7 @@ class CellsMapper {
       final row = rows.length;
       if (row < 2) return null;
       checkMapTo(row, mapTo);
-      final keys = get(rows, at: mapTo - 1, or: <String>[]);
+      final keys = get(rows, at: mapTo - 1, or: <String>[])!;
       final values = rows[row - 1];
       return _wrapRow(keys, values, row, fromColumn);
     } else {
@@ -3983,7 +3973,7 @@ class CellsMapper {
       if (row < 2) return null;
       checkMapTo(row, mapTo);
       final keys = extractSublist(
-        get(rows, at: mapTo - 1, or: <String>[]),
+        get(rows, at: mapTo - 1, or: <String>[])!,
         from: fromColumn - 1,
         length: length,
       );
