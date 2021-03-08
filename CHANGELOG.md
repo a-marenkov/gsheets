@@ -1,3 +1,9 @@
+## 0.3.0-nullsafety.0
+
+- **Breaking change** - auto migrated code to null safety
+- **Breaking change** - ValueRenderOption use snake case
+
+
 ## 0.3.0-dev.1
 
 - **Breaking change** - `allRows` and `allColumns` always return lists with even lengths (if the value for the cell is absent, empty string is appended) 
