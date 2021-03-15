@@ -83,6 +83,19 @@ class GSheets {
     return _client;
   }
 
+  /// Closes the client and cleans up any resources associated with it.
+  ///
+  /// It's important to close each client when it's done being used; failing to
+  /// do so can cause the Dart process to hang.
+  Future<void> close({bool closeExternal = true}) async {
+    final client = await this.client.catchError(() => null);
+    if (client == null) return;
+    if (_externalClient == null || closeExternal) {
+      client.close();
+      _client = null;
+    }
+  }
+
   /// Creates a new [Spreadsheet], and returns it.
   ///
   /// Requires SheetsApi.SpreadsheetsScope.
