@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:googleapis/sheets/v4.dart' as v4;
@@ -30,9 +31,11 @@ class GSheetsException implements Exception {
 
 /// Manages googleapis auth and [Spreadsheet] fetching.
 class GSheets {
-  Future<AutoRefreshingAuthClient> _client;
+  final Future<AutoRefreshingAuthClient> _externalClient;
   final ServiceAccountCredentials _credentials;
   final List<String> _scopes;
+
+  Future<AutoRefreshingAuthClient> _client;
 
   /// Creates an instance of [GSheets].
   ///
@@ -49,7 +52,8 @@ class GSheets {
       v4.SheetsApi.SpreadsheetsScope,
       v4.SheetsApi.DriveScope,
     ],
-  })  : _scopes = scopes,
+  })  : _externalClient = null,
+        _scopes = scopes,
         _credentials = ServiceAccountCredentials.fromJson(
           credentialsJson,
           impersonatedUser: impersonatedUser,
@@ -58,11 +62,38 @@ class GSheets {
     client;
   }
 
+  /// Creates an instance of [GSheets] with custom client
+  ///
+  /// [client] - instance or Future of [AutoRefreshingAuthClient] that
+  /// will be used for requests to google sheets api
+  ///
+  /// see https://pub.dev/packages/googleapis_auth for all options
+  /// of creating [AutoRefreshingAuthClientЛ]
+  GSheets.withClient(FutureOr<AutoRefreshingAuthClient> client)
+      : assert(client != null),
+        _externalClient = Future.value(client),
+        _credentials = null,
+        _scopes = null;
+
   /// Returns Future [AutoRefreshingAuthClient] - autorefreshing,
   /// authenticated HTTP client.
   Future<AutoRefreshingAuthClient> get client {
-    _client ??= clientViaServiceAccount(_credentials, _scopes);
+    _client ??=
+        _externalClient ?? clientViaServiceAccount(_credentials, _scopes);
     return _client;
+  }
+
+  /// Closes the client and cleans up any resources associated with it.
+  ///
+  /// It's important to close each client when it's done being used; failing to
+  /// do so can cause the Dart process to hang.
+  Future<void> close({bool closeExternal = true}) async {
+    final client = await this.client.catchError(() => null);
+    if (client == null) return;
+    if (_externalClient == null || closeExternal) {
+      client.close();
+      _client = null;
+    }
   }
 
   /// Creates a new [Spreadsheet], and returns it.

@@ -1,3 +1,8 @@
+## 0.2.7
+
+- Added constructor with custom client for `GSheets`
+- Added `close` method to `GSheets`
+
 ## 0.2.6
 
 - Updated dependencies
