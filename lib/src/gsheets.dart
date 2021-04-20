@@ -364,13 +364,13 @@ class Spreadsheet {
   ///
   /// Throws [GSheetsException] if sheet with [title] already exists, or
   /// if [rows] or [columns] value is invalid.
-  Future<Worksheet?> addWorksheet(
+  Future<Worksheet> addWorksheet(
     String title, {
     int rows = defaultRowsCount,
     int columns = defaultColumnCount,
   }) async {
-    check('columns', columns);
-    check('rows', rows);
+    checkIndex('columns', columns);
+    checkIndex('rows', rows);
     final response = await GSheets.batchUpdate(_client, id, [
       {
         'addSheet': {
@@ -386,7 +386,6 @@ class Spreadsheet {
       }
     ]);
     final addSheetJson = (jsonDecode(response.body)['replies'] as List?)?.first;
-    if (addSheetJson == null) return null;
     final ws = Worksheet._fromJson(
       addSheetJson['addSheet'],
       _client,
@@ -812,7 +811,7 @@ class Worksheet {
   }
 
   Future<bool> _deleteDimension(String dimen, int index, int count) async {
-    check('count', count);
+    checkIndex('count', count);
     await GSheets.batchUpdate(_client, spreadsheetId, [
       {
         'deleteDimension': {
@@ -840,8 +839,8 @@ class Worksheet {
   ///
   /// Throws [GSheetsException].
   Future<bool> deleteColumn(int column, {int count = 1}) async {
-    check('column', column);
-    final isDeleted = await _deleteDimension(DIMEN_COLUMNS, column, count);
+    checkIndex('column', column);
+    final isDeleted = await _deleteDimension(dimenColumns, column, count);
     if (isDeleted) {
       _columnCount = _columnCount - count;
     }
@@ -860,8 +859,8 @@ class Worksheet {
   ///
   /// Throws [GSheetsException].
   Future<bool> deleteRow(int row, {int count = 1}) async {
-    check('row', row);
-    final isDeleted = await _deleteDimension(DIMEN_ROWS, row, count);
+    checkIndex('row', row);
+    final isDeleted = await _deleteDimension(dimenRows, row, count);
     if (isDeleted) {
       _rowCount = _rowCount - count;
     }
@@ -874,7 +873,7 @@ class Worksheet {
     int count,
     bool inheritFromBefore,
   ) async {
-    check('count', count);
+    checkIndex('count', count);
     await GSheets.batchUpdate(_client, spreadsheetId, [
       {
         'insertDimension': {
@@ -912,9 +911,9 @@ class Worksheet {
     int count = 1,
     bool inheritFromBefore = false,
   }) async {
-    check('column', column);
+    checkIndex('column', column);
     final isInserted = await _insertDimension(
-      DIMEN_COLUMNS,
+      dimenColumns,
       column,
       count,
       inheritFromBefore,
@@ -946,9 +945,9 @@ class Worksheet {
     int count = 1,
     bool inheritFromBefore = false,
   }) async {
-    check('row', row);
+    checkIndex('row', row);
     final isInserted = await _insertDimension(
-      DIMEN_ROWS,
+      dimenRows,
       row,
       count,
       inheritFromBefore,
@@ -966,9 +965,9 @@ class Worksheet {
     int count,
   ) async {
     except(from == to, 'cannot move from $from to $to');
-    check('from', from);
-    check('to', to);
-    check('count', count);
+    checkIndex('from', from);
+    checkIndex('to', to);
+    checkIndex('count', count);
     // correct values for from > to
     final cFrom = from < to ? from : to;
     final cTo = from < to ? to : from + count - 1;
@@ -1007,7 +1006,7 @@ class Worksheet {
     required int to,
     int count = 1,
   }) async {
-    return _moveDimension(DIMEN_COLUMNS, from, to, count);
+    return _moveDimension(dimenColumns, from, to, count);
   }
 
   /// Moves rows.
@@ -1028,7 +1027,7 @@ class Worksheet {
     required int to,
     int count = 1,
   }) async {
-    return _moveDimension(DIMEN_ROWS, from, to, count);
+    return _moveDimension(dimenRows, from, to, count);
   }
 
   Future<bool> _clear(String range) async {
@@ -1070,9 +1069,9 @@ class Worksheet {
     int length = -1,
     int count = 1,
   }) async {
-    check('column', column);
-    check('fromRow', fromRow);
-    check('count', count);
+    checkIndex('column', column);
+    checkIndex('fromRow', fromRow);
+    checkIndex('count', count);
     return _clear(await _allColumnsRange(column, fromRow, length, count));
   }
 
@@ -1098,9 +1097,9 @@ class Worksheet {
     int length = -1,
     int count = 1,
   }) async {
-    check('row', row);
-    check('fromColumn', fromColumn);
-    check('count', count);
+    checkIndex('row', row);
+    checkIndex('fromColumn', fromColumn);
+    checkIndex('count', count);
     return _clear(await _allRowsRange(row, fromColumn, length, count));
   }
 
@@ -1121,7 +1120,7 @@ class Worksheet {
     );
     checkResponse(response);
     final list = (jsonDecode(response.body)['values'] as List?)?.first as List?;
-    return list?.map(parseValue)?.toList() ?? <String>[];
+    return list?.map(parseStringOrEmpty).toList() ?? <String>[];
   }
 
   Future<List<List<String>>> _getAll(String range, String dimension) async {
@@ -1138,7 +1137,7 @@ class Worksheet {
     final list = <List<String>>[];
     var maxLength = 0;
     for (final sublist in values) {
-      list.add((sublist as List).map(parseValue).toList());
+      list.add((sublist as List).map(parseStringOrEmpty).toList());
       maxLength = max(maxLength, sublist.length);
     }
     appendIfShorter(list, maxLength, '');
@@ -1146,7 +1145,7 @@ class Worksheet {
   }
 
   Future<bool> _update({
-    required List<dynamic> values,
+    required List values,
     required String majorDimension,
     required String range,
   }) async {
@@ -1302,10 +1301,10 @@ class WorksheetAsValues {
     int fromRow = 1,
     int length = -1,
   }) async {
-    check('column', column);
-    check('fromRow', fromRow);
+    checkIndex('column', column);
+    checkIndex('fromRow', fromRow);
     final range = await _ws._columnRange(column, fromRow, length);
-    return _ws._get(range, DIMEN_COLUMNS);
+    return _ws._get(range, dimenColumns);
   }
 
   /// Fetches specified row.
@@ -1330,10 +1329,10 @@ class WorksheetAsValues {
     int fromColumn = 1,
     int length = -1,
   }) async {
-    check('row', row);
-    check('fromColumn', fromColumn);
+    checkIndex('row', row);
+    checkIndex('fromColumn', fromColumn);
     final range = await _ws._rowRange(row, fromColumn, length);
-    return _ws._get(range, DIMEN_ROWS);
+    return _ws._get(range, dimenRows);
   }
 
   /// Fetches column by its name.
@@ -1360,7 +1359,7 @@ class WorksheetAsValues {
     int length = -1,
   }) async {
     final cKey = parseKey(key);
-    check('fromRow', fromRow);
+    checkIndex('fromRow', fromRow);
     final columns = await allColumns();
     final columnIndex = whereFirst(columns, cKey);
     if (columnIndex < 0) return null;
@@ -1395,7 +1394,7 @@ class WorksheetAsValues {
     int length = -1,
   }) async {
     final rKey = parseKey(key);
-    check('fromColumn', fromColumn);
+    checkIndex('fromColumn', fromColumn);
     final rows = await allRows();
     final rowIndex = whereFirst(rows, rKey);
     if (rowIndex < 0) return null;
@@ -1437,7 +1436,7 @@ class WorksheetAsValues {
       if (columns.isEmpty) return null;
       return columns.last;
     } else {
-      check('fromRow', fromRow);
+      checkIndex('fromRow', fromRow);
       final columns = await allColumns();
       if (columns.isEmpty) return null;
       return extractSublist(
@@ -1479,7 +1478,7 @@ class WorksheetAsValues {
       if (rows.isEmpty) return null;
       return rows.last;
     } else {
-      check('fromColumn', fromColumn);
+      checkIndex('fromColumn', fromColumn);
       final rows = await allRows();
       if (rows.isEmpty) return null;
       return extractSublist(
@@ -1517,15 +1516,15 @@ class WorksheetAsValues {
     int length = -1,
     int count = -1,
   }) async {
-    check('fromColumn', fromColumn);
-    check('fromRow', fromRow);
+    checkIndex('fromColumn', fromColumn);
+    checkIndex('fromRow', fromRow);
     final range = await _ws._allColumnsRange(
       fromColumn,
       fromRow,
       length,
       count,
     );
-    return _ws._getAll(range, DIMEN_COLUMNS);
+    return _ws._getAll(range, dimenColumns);
   }
 
   /// Fetches all rows.
@@ -1555,15 +1554,15 @@ class WorksheetAsValues {
     int length = -1,
     int count = -1,
   }) async {
-    check('fromColumn', fromColumn);
-    check('fromRow', fromRow);
+    checkIndex('fromColumn', fromColumn);
+    checkIndex('fromRow', fromRow);
     final range = await _ws._allRowsRange(
       fromRow,
       fromColumn,
       length,
       count,
     );
-    return _ws._getAll(range, DIMEN_ROWS);
+    return _ws._getAll(range, dimenRows);
   }
 
   /// Fetches cell's value.
@@ -1583,10 +1582,10 @@ class WorksheetAsValues {
     required int column,
     required int row,
   }) async {
-    check('column', column);
-    check('row', row);
+    checkIndex('column', column);
+    checkIndex('row', row);
     final range = await _ws._columnRange(column, row, 1);
-    return getOrEmpty(await _ws._get(range, DIMEN_COLUMNS));
+    return getOrEmpty(await _ws._get(range, dimenColumns));
   }
 
   /// Fetches cell's value by names of its column and row.
@@ -1635,12 +1634,12 @@ class WorksheetAsValues {
     required int column,
     required int row,
   }) async {
-    check('column', column);
-    check('row', row);
+    checkIndex('column', column);
+    checkIndex('row', row);
     return _ws._update(
       values: [value ?? ''],
       range: await _ws._columnRange(column, row, 1),
-      majorDimension: DIMEN_COLUMNS,
+      majorDimension: dimenColumns,
     );
   }
 
@@ -1674,7 +1673,7 @@ class WorksheetAsValues {
     return _ws._update(
       values: [value ?? ''],
       range: await _ws._columnRange(await column, await row, 1),
-      majorDimension: DIMEN_COLUMNS,
+      majorDimension: dimenColumns,
     );
   }
 
@@ -1689,7 +1688,7 @@ class WorksheetAsValues {
       await _ws._update(
         values: [key],
         range: await _ws._columnRange(1, row, 1),
-        majorDimension: DIMEN_COLUMNS,
+        majorDimension: dimenColumns,
       );
     }
     return row;
@@ -1709,7 +1708,7 @@ class WorksheetAsValues {
       await _ws._update(
         values: [key],
         range: await _ws._columnRange(column, 1, 1),
-        majorDimension: DIMEN_COLUMNS,
+        majorDimension: dimenColumns,
       );
     }
     return column;
@@ -1744,7 +1743,7 @@ class WorksheetAsValues {
         await _ws._update(
           values: [cKey],
           range: await _ws._columnRange(columnKeys.length + 1, inRow, 1),
-          majorDimension: DIMEN_COLUMNS,
+          majorDimension: dimenColumns,
         );
         column = columnKeys.length + 1;
       }
@@ -1782,7 +1781,7 @@ class WorksheetAsValues {
         await _ws._update(
           values: [rKey],
           range: await _ws._columnRange(inColumn, rowKeys.length + 1, 1),
-          majorDimension: DIMEN_COLUMNS,
+          majorDimension: dimenColumns,
         );
         row = rowKeys.length + 1;
       }
@@ -1811,13 +1810,13 @@ class WorksheetAsValues {
     List<dynamic> values, {
     int fromRow = 1,
   }) async {
-    check('column', column);
-    check('fromRow', fromRow);
+    checkIndex('column', column);
+    checkIndex('fromRow', fromRow);
     checkValues(values);
     return _ws._update(
       values: values,
       range: await _ws._columnRange(column, fromRow, values.length),
-      majorDimension: DIMEN_COLUMNS,
+      majorDimension: dimenColumns,
     );
   }
 
@@ -1841,13 +1840,13 @@ class WorksheetAsValues {
     List<List<dynamic>> values, {
     int fromRow = 1,
   }) async {
-    check('column', column);
-    check('fromRow', fromRow);
+    checkIndex('column', column);
+    checkIndex('fromRow', fromRow);
     checkValues(values);
     return _ws._updateAll(
       values: values,
       range: await _ws._allColumnsRange(column, fromRow, -1, values.length),
-      majorDimension: DIMEN_COLUMNS,
+      majorDimension: dimenColumns,
     );
   }
 
@@ -1872,13 +1871,13 @@ class WorksheetAsValues {
     List<dynamic> values, {
     int fromColumn = 1,
   }) async {
-    check('row', row);
-    check('fromColumn', fromColumn);
+    checkIndex('row', row);
+    checkIndex('fromColumn', fromColumn);
     checkValues(values);
     return _ws._update(
       values: values,
       range: await _ws._rowRange(row, fromColumn, values.length),
-      majorDimension: DIMEN_ROWS,
+      majorDimension: dimenRows,
     );
   }
 
@@ -1901,13 +1900,13 @@ class WorksheetAsValues {
     List<List<dynamic>> values, {
     int fromColumn = 1,
   }) async {
-    check('row', row);
-    check('fromColumn', fromColumn);
+    checkIndex('row', row);
+    checkIndex('fromColumn', fromColumn);
     checkValues(values);
     return _ws._updateAll(
       values: values,
       range: await _ws._allRowsRange(row, fromColumn, -1, values.length),
-      majorDimension: DIMEN_ROWS,
+      majorDimension: dimenRows,
     );
   }
 
@@ -2106,8 +2105,8 @@ class ValuesMapper {
     int length = -1,
     int mapTo = 1,
   }) async {
-    check('column', column);
-    check('mapTo', mapTo);
+    checkIndex('column', column);
+    checkIndex('mapTo', mapTo);
     checkMapTo(column, mapTo);
     final columns = await _values.allColumns(
       fromRow: fromRow,
@@ -2145,8 +2144,8 @@ class ValuesMapper {
     int length = -1,
     int mapTo = 1,
   }) async {
-    check('row', row);
-    check('mapTo', mapTo);
+    checkIndex('row', row);
+    checkIndex('mapTo', mapTo);
     checkMapTo(row, mapTo);
     final rows = await _values.allRows(
       fromColumn: fromColumn,
@@ -2186,14 +2185,14 @@ class ValuesMapper {
     dynamic mapTo,
   }) async {
     final cKey = parseKey(key);
-    final mKey = parseMapToKey(mapTo);
-    check('fromRow', fromRow);
+    final mKey = parseStringOrNull(mapTo);
+    checkIndex('fromRow', fromRow);
     checkMapTo(cKey, mKey);
     final columns = await _values.allColumns();
     if (columns.isEmpty) return null;
     final columnIndex = whereFirst(columns, cKey);
     if (columnIndex < 0) return null;
-    final mapToIndex = isNullOrEmpty(mKey) ? 0 : whereFirst(columns, mKey);
+    final mapToIndex = isNullOrEmpty(mKey) ? 0 : whereFirst(columns, mKey!);
     if (mapToIndex < 0) return null;
     checkMapTo(columnIndex + 1, mapToIndex + 1);
     final keys = extractSublist(
@@ -2238,14 +2237,14 @@ class ValuesMapper {
     dynamic mapTo,
   }) async {
     final rKey = parseKey(key);
-    final mKey = parseMapToKey(mapTo);
-    check('fromColumn', fromColumn);
+    final mKey = parseStringOrNull(mapTo);
+    checkIndex('fromColumn', fromColumn);
     checkMapTo(rKey, mKey);
     final rows = await _values.allRows();
     if (rows.isEmpty) return null;
     final rowIndex = whereFirst(rows, rKey);
     if (rowIndex < 0) return null;
-    final mapToIndex = isNullOrEmpty(mKey) ? 0 : whereFirst(rows, mKey);
+    final mapToIndex = isNullOrEmpty(mKey) ? 0 : whereFirst(rows, mKey!);
     if (mapToIndex < 0) return null;
     checkMapTo(rowIndex + 1, mapToIndex + 1);
     final keys = extractSublist(
@@ -2289,7 +2288,7 @@ class ValuesMapper {
     int mapTo = 1,
     bool inRange = false,
   }) async {
-    check('mapTo', mapTo);
+    checkIndex('mapTo', mapTo);
     if (inRange) {
       final columns = await _values.allColumns(
         fromRow: fromRow,
@@ -2302,7 +2301,7 @@ class ValuesMapper {
       final values = get(columns, at: column - 1, or: <String>[])!;
       return _wrap(keys, values);
     } else {
-      check('fromRow', fromRow);
+      checkIndex('fromRow', fromRow);
       final columns = await _values.allColumns();
       if (columns.length < 2) return null;
       checkMapTo(columns.length, mapTo);
@@ -2349,7 +2348,7 @@ class ValuesMapper {
     int mapTo = 1,
     bool inRange = false,
   }) async {
-    check('mapTo', mapTo);
+    checkIndex('mapTo', mapTo);
     if (inRange) {
       final rows = await _values.allRows(
         fromColumn: fromColumn,
@@ -2362,7 +2361,7 @@ class ValuesMapper {
       final values = get(rows, at: row - 1, or: <String>[])!;
       return _wrap(keys, values);
     } else {
-      check('fromColumn', fromColumn);
+      checkIndex('fromColumn', fromColumn);
       final rows = await _values.allRows();
       if (rows.length < 2) return null;
       checkMapTo(rows.length, mapTo);
@@ -2415,8 +2414,8 @@ class ValuesMapper {
     int count = -1,
     int mapTo = 1,
   }) async {
-    check('fromColumn', fromColumn);
-    check('mapTo', mapTo);
+    checkIndex('fromColumn', fromColumn);
+    checkIndex('mapTo', mapTo);
     final columns = await _values.allColumns(
       fromRow: fromRow,
       length: length,
@@ -2469,8 +2468,8 @@ class ValuesMapper {
     int count = -1,
     int mapTo = 1,
   }) async {
-    check('fromRow', fromRow);
-    check('mapTo', mapTo);
+    checkIndex('fromRow', fromRow);
+    checkIndex('mapTo', mapTo);
     final rows = await _values.allRows(
       fromColumn: fromColumn,
       length: length,
@@ -2625,7 +2624,7 @@ class ValuesMapper {
     bool appendMissing = false,
     bool overwrite = false,
   }) async {
-    check('column', column);
+    checkIndex('column', column);
     checkMapTo(row, mapTo);
     checkMap(maps);
     final keys = await _values.column(mapTo);
@@ -2678,12 +2677,12 @@ class ValuesMapper {
     bool eager = true,
   }) async {
     final cKey = parseKey(key);
-    final mKey = parseMapToKey(mapTo);
-    check('fromRow', fromRow);
+    final mKey = parseStringOrNull(mapTo);
+    checkIndex('fromRow', fromRow);
     checkMapTo(cKey, mapTo);
     checkMap(map);
     final columns = await _values.allColumns();
-    final mapToIndex = isNullOrEmpty(mKey) ? 0 : whereFirst(columns, mKey);
+    final mapToIndex = isNullOrEmpty(mKey) ? 0 : whereFirst(columns, mKey!);
     if (mapToIndex < 0) return false;
     var columnIndex = whereFirst(columns, cKey);
     if (columnIndex < 0) {
@@ -2692,7 +2691,7 @@ class ValuesMapper {
       await _values._ws._update(
         values: [cKey],
         range: await _values._ws._columnRange(columnIndex + 1, 1, 1),
-        majorDimension: DIMEN_COLUMNS,
+        majorDimension: dimenColumns,
       );
     } else {
       checkMapTo(columnIndex + 1, mapToIndex + 1);
@@ -2779,8 +2778,8 @@ class ValuesMapper {
     bool appendMissing = false,
     bool inRange = false,
   }) async {
-    check('fromRow', fromRow);
-    check('mapTo', mapTo);
+    checkIndex('fromRow', fromRow);
+    checkIndex('mapTo', mapTo);
     checkMap(maps);
     final columns = await _values.allColumns();
     final column =
@@ -2951,7 +2950,7 @@ class ValuesMapper {
     bool appendMissing = false,
     bool overwrite = false,
   }) async {
-    check('row', row);
+    checkIndex('row', row);
     checkMapTo(row, mapTo);
     checkMap(maps);
     final keys = await _values.row(mapTo);
@@ -3004,12 +3003,12 @@ class ValuesMapper {
     bool eager = true,
   }) async {
     final rKey = parseKey(key);
-    final mKey = parseMapToKey(mapTo);
-    check('fromColumn', fromColumn);
+    final mKey = parseStringOrNull(mapTo);
+    checkIndex('fromColumn', fromColumn);
     checkMapTo(rKey, mKey);
     checkMap(map);
     final rows = await _values.allRows();
-    final mapToIndex = isNullOrEmpty(mKey) ? 0 : whereFirst(rows, mKey);
+    final mapToIndex = isNullOrEmpty(mKey) ? 0 : whereFirst(rows, mKey!);
     if (mapToIndex < 0) return false;
     var rowIndex = whereFirst(rows, rKey);
     if (rowIndex < 0) {
@@ -3018,7 +3017,7 @@ class ValuesMapper {
       await _values._ws._update(
         values: [rKey],
         range: await _values._ws._columnRange(1, rowIndex + 1, 1),
-        majorDimension: DIMEN_COLUMNS,
+        majorDimension: dimenColumns,
       );
     } else {
       checkMapTo(rowIndex + 1, mapToIndex + 1);
@@ -3107,8 +3106,8 @@ class ValuesMapper {
     bool appendMissing = false,
     bool inRange = false,
   }) async {
-    check('fromColumn', fromColumn);
-    check('mapTo', mapTo);
+    checkIndex('fromColumn', fromColumn);
+    checkIndex('mapTo', mapTo);
     checkMap(maps);
     final rows = await _values.allRows();
     final row = inRange ? inRangeIndex(rows, fromColumn) + 1 : rows.length + 1;
@@ -3168,12 +3167,12 @@ class Cell implements Comparable {
   ///
   /// Throws [GSheetsException].
   Future<bool> post(dynamic value) async {
-    final val = parseValue(value);
+    final val = parseStringOrEmpty(value);
     if (this.value == val) return false;
     final posted = await _ws._update(
       values: [val],
       range: "'$worksheetTitle'!$label",
-      majorDimension: DIMEN_COLUMNS,
+      majorDimension: dimenColumns,
     );
     if (posted) this.value = val;
     return posted;
@@ -3187,7 +3186,7 @@ class Cell implements Comparable {
   Future<bool> refresh() async {
     final before = value;
     final range = "'$worksheetTitle'!$label:$label";
-    value = getOrEmpty(await _ws._get(range, DIMEN_COLUMNS));
+    value = getOrEmpty(await _ws._get(range, dimenColumns));
     return before != value;
   }
 
@@ -3314,7 +3313,7 @@ class WorksheetAsCells {
     int length = -1,
   }) async {
     final cKey = parseKey(key);
-    check('fromRow', fromRow);
+    checkIndex('fromRow', fromRow);
     final columns = await _ws.values.allColumns();
     final columnIndex = whereFirst(columns, cKey);
     if (columnIndex < 0) return null;
@@ -3349,7 +3348,7 @@ class WorksheetAsCells {
     int length = -1,
   }) async {
     final rKey = parseKey(key);
-    check('fromColumn', fromColumn);
+    checkIndex('fromColumn', fromColumn);
     final rows = await _ws.values.allRows();
     final rowIndex = whereFirst(rows, rKey);
     if (rowIndex < 0) return null;
@@ -3392,7 +3391,7 @@ class WorksheetAsCells {
       if (columns.isEmpty) return null;
       return _wrapColumn(columns.last, columns.length, fromRow);
     } else {
-      check('fromRow', fromRow);
+      checkIndex('fromRow', fromRow);
       final columns = await _ws.values.allColumns();
       if (columns.isEmpty) return null;
       final list = extractSublist(
@@ -3435,7 +3434,7 @@ class WorksheetAsCells {
       if (rows.isEmpty) return null;
       return _wrapRow(rows.last, rows.length, fromColumn);
     } else {
-      check('fromColumn', fromColumn);
+      checkIndex('fromColumn', fromColumn);
       final rows = await _ws.values.allRows();
       if (rows.isEmpty) return null;
       final list = extractSublist(
@@ -3554,7 +3553,7 @@ class WorksheetAsCells {
     int fromColumn = 1,
     int length = -1,
   }) async {
-    final valueString = parseValue(value);
+    final valueString = parseStringOrEmpty(value);
     final cells = <Cell>[];
     var rows = await _ws.values.allRows(
       fromRow: fromRow,
@@ -3643,7 +3642,7 @@ class WorksheetAsCells {
     final range =
         "'${values.first.worksheetTitle}'!${values.first.label}:${values.last.label}";
     final dimen =
-        values.first.row == values.last.row ? DIMEN_ROWS : DIMEN_COLUMNS;
+        values.first.row == values.last.row ? dimenRows : dimenColumns;
     return _ws._update(
       values: values.map((cell) => cell.value).toList(),
       range: range,
@@ -3713,8 +3712,8 @@ class CellsMapper {
     int fromRow = 1,
     int length = -1,
   }) async {
-    check('column', column);
-    check('mapTo', mapTo);
+    checkIndex('column', column);
+    checkIndex('mapTo', mapTo);
     checkMapTo(column, mapTo);
     final columns = await _cells._ws.values.allColumns(
       fromRow: fromRow,
@@ -3752,8 +3751,8 @@ class CellsMapper {
     int mapTo = 1,
     int length = -1,
   }) async {
-    check('row', row);
-    check('mapTo', mapTo);
+    checkIndex('row', row);
+    checkIndex('mapTo', mapTo);
     checkMapTo(row, mapTo);
     final rows = await _cells._ws.values.allRows(
       fromColumn: fromColumn,
@@ -3793,13 +3792,13 @@ class CellsMapper {
     int length = -1,
   }) async {
     final cKey = parseKey(key);
-    final mKey = parseMapToKey(mapTo);
-    check('fromRow', fromRow);
+    final mKey = parseStringOrNull(mapTo);
+    checkIndex('fromRow', fromRow);
     checkMapTo(cKey, mKey);
     final columns = await _cells._ws.values.allColumns();
     final columnIndex = whereFirst(columns, cKey);
     if (columnIndex < 0) return null;
-    final mapToIndex = isNullOrEmpty(mKey) ? 0 : whereFirst(columns, mKey);
+    final mapToIndex = isNullOrEmpty(mKey) ? 0 : whereFirst(columns, mKey!);
     if (mapToIndex < 0) return null;
     checkMapTo(columnIndex + 1, mapToIndex + 1);
     final keys = extractSublist(
@@ -3844,13 +3843,13 @@ class CellsMapper {
     int length = -1,
   }) async {
     final rKey = parseKey(key);
-    final mKey = parseMapToKey(mapTo);
-    check('fromColumn', fromColumn);
+    final mKey = parseStringOrNull(mapTo);
+    checkIndex('fromColumn', fromColumn);
     checkMapTo(key, mKey);
     final rows = await _cells._ws.values.allRows();
     final rowIndex = whereFirst(rows, rKey);
     if (rowIndex < 0) return null;
-    final mapToIndex = isNullOrEmpty(mKey) ? 0 : whereFirst(rows, mKey);
+    final mapToIndex = isNullOrEmpty(mKey) ? 0 : whereFirst(rows, mKey!);
     if (mapToIndex < 0) return null;
     checkMapTo(rowIndex + 1, mapToIndex + 1);
     final keys = extractSublist(
@@ -3894,7 +3893,7 @@ class CellsMapper {
     int length = -1,
     bool inRange = false,
   }) async {
-    check('mapTo', mapTo);
+    checkIndex('mapTo', mapTo);
     if (inRange) {
       final columns = await _cells._ws.values.allColumns(
         fromRow: fromRow,
@@ -3907,7 +3906,7 @@ class CellsMapper {
       final values = columns[column - 1];
       return _wrapColumn(keys, values, column, fromRow);
     } else {
-      check('fromRow', fromRow);
+      checkIndex('fromRow', fromRow);
       final columns = await _cells._ws.values.allColumns();
       final column = columns.length;
       if (column < 2) return null;
@@ -3954,7 +3953,7 @@ class CellsMapper {
     int length = -1,
     bool inRange = false,
   }) async {
-    check('mapTo', mapTo);
+    checkIndex('mapTo', mapTo);
     if (inRange) {
       final rows = await _cells._ws.values.allRows(
         fromColumn: fromColumn,
@@ -3967,7 +3966,7 @@ class CellsMapper {
       final values = rows[row - 1];
       return _wrapRow(keys, values, row, fromColumn);
     } else {
-      check('fromColumn', fromColumn);
+      checkIndex('fromColumn', fromColumn);
       final rows = await _cells._ws.values.allRows();
       final row = rows.length;
       if (row < 2) return null;
