@@ -139,3 +139,7 @@ void appendIfShorter<T>(
 bool isNullOrEmpty(data) => data == null || data.isEmpty;
 
 bool gridSheetsFilter(json) => json['properties']['sheetType'] == 'GRID';
+
+extension StringX on String {
+  Uri toUri() => Uri.parse(this);
+}

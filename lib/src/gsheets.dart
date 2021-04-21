@@ -104,7 +104,7 @@ class GSheets {
             })
         .toList();
     final response = await client.post(
-      Uri.parse(_sheetsEndpoint),
+      _sheetsEndpoint.toUri(),
       body: jsonEncode(
         {
           'properties': {
@@ -158,9 +158,7 @@ class GSheets {
       _client = null;
       return this.client;
     });
-    final response = await client.get(
-      Uri.parse('$_sheetsEndpoint$spreadsheetId'),
-    );
+    final response = await client.get('$_sheetsEndpoint$spreadsheetId'.toUri());
     checkResponse(response);
     final renderOption = _parseRenderOption(render);
     final inputOption = _parseInputOption(input);
@@ -226,7 +224,7 @@ class GSheets {
     List<Map<String, dynamic>> requests,
   ) async {
     final response = await client.post(
-      Uri.parse('$_sheetsEndpoint$spreadsheetId:batchUpdate'),
+      '$_sheetsEndpoint$spreadsheetId:batchUpdate'.toUri(),
       body: jsonEncode({'requests': requests}),
     );
     checkResponse(response);
@@ -286,7 +284,7 @@ class Spreadsheet {
   /// Returns Future `true` in case of success.
   Future<bool> refresh() async {
     final response = await _client.get(
-      Uri.parse('$_sheetsEndpoint$id'),
+      '$_sheetsEndpoint$id'.toUri(),
     );
     if (response.statusCode == 200) {
       final newSheets = (jsonDecode(response.body)['sheets'] as List)
@@ -417,7 +415,7 @@ class Spreadsheet {
       throw GSheetsException('invalid spreadsheetId ($spreadsheetId)');
     }
     final response = await _client.post(
-      Uri.parse('$_sheetsEndpoint$spreadsheetId/sheets/$sheetId:copyTo'),
+      '$_sheetsEndpoint$spreadsheetId/sheets/$sheetId:copyTo'.toUri(),
       body: jsonEncode({'destinationSpreadsheetId': id}),
     );
     checkResponse(response);
@@ -495,7 +493,7 @@ class Spreadsheet {
   /// Throws GSheetsException if DriveScope is not configured.
   Future<List<Permission>> permissions() async {
     final response = await _client.get(
-      Uri.parse('$_filesEndpoint$id/permissions'),
+      '$_filesEndpoint$id/permissions'.toUri(),
     );
     checkResponse(response);
     return (jsonDecode(response.body)['items'] as List?)
@@ -516,7 +514,7 @@ class Spreadsheet {
   /// Throws GSheetsException if DriveScope is not configured.
   Future<Permission?> permissionByEmail(String email) async {
     final response = await _client.get(
-      Uri.parse('$_filesEndpoint$id/permissions'),
+      '$_filesEndpoint$id/permissions'.toUri(),
     );
     checkResponse(response);
     return (jsonDecode(response.body)['items'] as List?)
@@ -544,7 +542,7 @@ class Spreadsheet {
     bool withLink = false,
   }) async {
     final response = await _client.post(
-      Uri.parse('$_filesEndpoint$id/permissions'),
+      '$_filesEndpoint$id/permissions'.toUri(),
       body: jsonEncode({
         'value': user,
         'type': Permission._parseType(type),
@@ -567,7 +565,7 @@ class Spreadsheet {
   /// Throws GSheetsException if DriveScope is not configured.
   Future<bool> revokePermissionById(String id) async {
     final response = await _client.delete(
-      Uri.parse('$_filesEndpoint$id/permissions'),
+      '$_filesEndpoint$id/permissions'.toUri(),
     );
     checkResponse(response);
     return response.statusCode == 204;
@@ -788,7 +786,7 @@ class Worksheet {
     }
 
     final response = await _client.post(
-      Uri.parse('$_sheetsEndpoint${this.spreadsheetId}/sheets/$id:copyTo'),
+      '$_sheetsEndpoint${this.spreadsheetId}/sheets/$id:copyTo'.toUri(),
       body: jsonEncode({'destinationSpreadsheetId': spreadsheetId}),
     );
     checkResponse(response);
@@ -1033,7 +1031,7 @@ class Worksheet {
   Future<bool> _clear(String range) async {
     final encodedRange = Uri.encodeComponent(range);
     final response = await _client.post(
-      Uri.parse('$_sheetsEndpoint$spreadsheetId/values/$encodedRange:clear'),
+      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange:clear'.toUri(),
     );
     checkResponse(response);
     return response.statusCode == 200;
@@ -1114,9 +1112,8 @@ class Worksheet {
   Future<List<String>> _get(String range, String dimension) async {
     final encodedRange = Uri.encodeComponent(range);
     final response = await _client.get(
-      Uri.parse(
-        '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption',
-      ),
+      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption'
+          .toUri(),
     );
     checkResponse(response);
     final list = (jsonDecode(response.body)['values'] as List?)?.first as List?;
@@ -1131,9 +1128,8 @@ class Worksheet {
     final encodedRange = Uri.encodeComponent(range);
 
     final response = await _client.get(
-      Uri.parse(
-        '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption',
-      ),
+      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption'
+          .toUri(),
     );
     checkResponse(response);
     final values = jsonDecode(response.body)['values'] as List?;
@@ -1144,7 +1140,7 @@ class Worksheet {
       list.add((sublist as List).map(parseString).toList());
       maxLength = max(maxLength, sublist.length);
     }
-    if(fill) {
+    if (fill) {
       appendIfShorter(list, maxLength, '');
     }
     return list;
@@ -1158,9 +1154,8 @@ class Worksheet {
     checkNotNested(values);
     final encodedRange = Uri.encodeComponent(range);
     final response = await _client.put(
-      Uri.parse(
-        '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?valueInputOption=$inputOption',
-      ),
+      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?valueInputOption=$inputOption'
+          .toUri(),
       body: jsonEncode(
         {
           'range': range,
@@ -1180,9 +1175,8 @@ class Worksheet {
   }) async {
     final encodedRange = Uri.encodeComponent(range);
     final response = await _client.put(
-      Uri.parse(
-        '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?valueInputOption=$inputOption',
-      ),
+      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?valueInputOption=$inputOption'
+          .toUri(),
       body: jsonEncode(
         {
           'range': range,
