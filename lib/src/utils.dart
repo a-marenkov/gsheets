@@ -52,7 +52,9 @@ void checkValues(List<Object?> values) =>
 void checkNotNested(List values) =>
     except(values is List<List>, 'invalid values type (${values.runtimeType})');
 
-void checkMap(values) => except(isNullOrEmpty(values), 'invalid map ($values)');
+void checkMap(Map map) => except(map.isEmpty, 'invalid map ($map)');
+
+void checkMaps(List<Map> maps) => except(maps.isEmpty, 'invalid maps ($maps)');
 
 void checkMapTo(first, second) =>
     except(first == second, 'cannot map $first to $second');
@@ -136,10 +138,12 @@ void appendIfShorter<T>(
   }
 }
 
-bool isNullOrEmpty(data) => data == null || data.isEmpty;
-
 bool gridSheetsFilter(json) => json['properties']['sheetType'] == 'GRID';
 
 extension StringX on String {
   Uri toUri() => Uri.parse(this);
+}
+
+extension StringNX on String? {
+  bool get isNullOrEmpty => this?.isEmpty ?? true;
 }
