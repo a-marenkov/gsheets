@@ -30,18 +30,24 @@ String getColumnLetter(int index) {
 void checkIndex(String name, int value) =>
     except(value < 1, 'invalid $name ($value)');
 
-String parseKey(str, [String type = '']) {
-  final key = parseStringOrNull(str);
-  except(isNullOrEmpty(key), 'invalid $type key ($str)');
-  return key!;
+String parseKey(Object str, [String type = '']) {
+  final key = str is String ? str : str.toString();
+  except(key.isEmpty, 'invalid $type key ($str)');
+  return key;
 }
 
-String? parseStringOrNull(str) => str is String ? str : str?.toString();
+String parseString(Object? str, [String defaultValue = '']) {
+  if (str == null) return defaultValue;
+  return str is String ? str : str.toString();
+}
 
-String parseStringOrEmpty(str) => parseStringOrNull(str) ?? '';
+String? parseStringOrNull(Object? str) {
+  if (str == null) return null;
+  return parseKey(str);
+}
 
-void checkValues(values) =>
-    except(isNullOrEmpty(values), 'invalid values ($values)');
+void checkValues(List<Object?> values) =>
+    except(values.isEmpty, 'invalid values ($values)');
 
 void checkNotNested(List values) =>
     except(values is List<List>, 'invalid values type (${values.runtimeType})');

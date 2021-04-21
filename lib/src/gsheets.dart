@@ -1120,10 +1120,14 @@ class Worksheet {
     );
     checkResponse(response);
     final list = (jsonDecode(response.body)['values'] as List?)?.first as List?;
-    return list?.map(parseStringOrEmpty).toList() ?? <String>[];
+    return list?.map(parseString).toList() ?? <String>[];
   }
 
-  Future<List<List<String>>> _getAll(String range, String dimension) async {
+  Future<List<List<String>>> _getAll(
+    String range,
+    String dimension,
+    bool fill,
+  ) async {
     final encodedRange = Uri.encodeComponent(range);
 
     final response = await _client.get(
@@ -1137,10 +1141,12 @@ class Worksheet {
     final list = <List<String>>[];
     var maxLength = 0;
     for (final sublist in values) {
-      list.add((sublist as List).map(parseStringOrEmpty).toList());
+      list.add((sublist as List).map(parseString).toList());
       maxLength = max(maxLength, sublist.length);
     }
-    appendIfShorter(list, maxLength, '');
+    if(fill) {
+      appendIfShorter(list, maxLength, '');
+    }
     return list;
   }
 
@@ -1354,7 +1360,7 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<List<String>?> columnByKey(
-    dynamic key, {
+    Object key, {
     int fromRow = 2,
     int length = -1,
   }) async {
@@ -1389,7 +1395,7 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<List<String>?> rowByKey(
-    dynamic key, {
+    Object key, {
     int fromColumn = 2,
     int length = -1,
   }) async {
@@ -1515,6 +1521,7 @@ class WorksheetAsValues {
     int fromRow = 1,
     int length = -1,
     int count = -1,
+    bool fill = false,
   }) async {
     checkIndex('fromColumn', fromColumn);
     checkIndex('fromRow', fromRow);
@@ -1524,7 +1531,7 @@ class WorksheetAsValues {
       length,
       count,
     );
-    return _ws._getAll(range, dimenColumns);
+    return _ws._getAll(range, dimenColumns, fill);
   }
 
   /// Fetches all rows.
@@ -1553,6 +1560,7 @@ class WorksheetAsValues {
     int fromColumn = 1,
     int length = -1,
     int count = -1,
+    bool fill = false,
   }) async {
     checkIndex('fromColumn', fromColumn);
     checkIndex('fromRow', fromRow);
@@ -1562,7 +1570,7 @@ class WorksheetAsValues {
       length,
       count,
     );
-    return _ws._getAll(range, dimenRows);
+    return _ws._getAll(range, dimenRows, fill);
   }
 
   /// Fetches cell's value.
@@ -1602,8 +1610,8 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<String?> valueByKeys({
-    required dynamic rowKey,
-    required dynamic columnKey,
+    required Object rowKey,
+    required Object columnKey,
   }) async {
     final rKey = parseKey(rowKey, 'row');
     final cKey = parseKey(columnKey, 'column');
@@ -1630,14 +1638,14 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<bool> insertValue(
-    dynamic value, {
+    Object value, {
     required int column,
     required int row,
   }) async {
     checkIndex('column', column);
     checkIndex('row', row);
     return _ws._update(
-      values: [value ?? ''],
+      values: [value],
       range: await _ws._columnRange(column, row, 1),
       majorDimension: dimenColumns,
     );
@@ -1658,9 +1666,9 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<bool> insertValueByKeys(
-    dynamic value, {
-    required dynamic columnKey,
-    required dynamic rowKey,
+    Object value, {
+    required Object columnKey,
+    required Object rowKey,
     bool eager = true,
   }) async {
     final rKey = parseKey(rowKey, 'row');
@@ -1671,7 +1679,7 @@ class WorksheetAsValues {
     if (await row < 1) return false;
     if (await column < 1) return false;
     return _ws._update(
-      values: [value ?? ''],
+      values: [value],
       range: await _ws._columnRange(await column, await row, 1),
       majorDimension: dimenColumns,
     );
@@ -1730,7 +1738,7 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<int> columnIndexOf(
-    dynamic key, {
+    Object key, {
     bool add = false,
     int inRow = 1,
   }) async {
@@ -1768,7 +1776,7 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<int> rowIndexOf(
-    dynamic key, {
+    Object key, {
     bool add = false,
     inColumn = 1,
   }) async {
@@ -1807,7 +1815,7 @@ class WorksheetAsValues {
   /// Throws [GSheetsException].
   Future<bool> insertColumn(
     int column,
-    List<dynamic> values, {
+    List<Object?> values, {
     int fromRow = 1,
   }) async {
     checkIndex('column', column);
@@ -1837,7 +1845,7 @@ class WorksheetAsValues {
   /// Throws [GSheetsException].
   Future<bool> insertColumns(
     int column,
-    List<List<dynamic>> values, {
+    List<List<Object?>> values, {
     int fromRow = 1,
   }) async {
     checkIndex('column', column);
@@ -1868,7 +1876,7 @@ class WorksheetAsValues {
   /// Throws [GSheetsException].
   Future<bool> insertRow(
     int row,
-    List<dynamic> values, {
+    List<Object?> values, {
     int fromColumn = 1,
   }) async {
     checkIndex('row', row);
@@ -1897,7 +1905,7 @@ class WorksheetAsValues {
   /// Throws [GSheetsException].
   Future<bool> insertRows(
     int row,
-    List<List<dynamic>> values, {
+    List<List<Object?>> values, {
     int fromColumn = 1,
   }) async {
     checkIndex('row', row);
@@ -1929,8 +1937,8 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<bool> insertColumnByKey(
-    dynamic key,
-    List<dynamic> values, {
+    Object key,
+    List<Object?> values, {
     int fromRow = 2,
     bool eager = true,
   }) async {
@@ -1958,8 +1966,8 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<bool> insertRowByKey(
-    dynamic key,
-    List<dynamic> values, {
+    Object key,
+    List<Object?> values, {
     int fromColumn = 2,
     bool eager = true,
   }) async {
@@ -1985,7 +1993,7 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<bool> appendColumn(
-    List<dynamic> values, {
+    List<Object?> values, {
     int fromRow = 1,
     bool inRange = false,
   }) async {
@@ -2010,7 +2018,7 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<bool> appendRow(
-    List<dynamic> values, {
+    List<Object?> values, {
     int fromColumn = 1,
     bool inRange = false,
   }) async {
@@ -2034,7 +2042,7 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<bool> appendRows(
-    List<List<dynamic>> values, {
+    List<List<Object?>> values, {
     int fromColumn = 1,
     bool inRange = false,
   }) async {
@@ -2059,7 +2067,7 @@ class WorksheetAsValues {
   ///
   /// Throws [GSheetsException].
   Future<bool> appendColumns(
-    List<List<dynamic>> values, {
+    List<List<Object?>> values, {
     int fromRow = 1,
     bool inRange = false,
   }) async {
@@ -3166,8 +3174,8 @@ class Cell implements Comparable {
   /// Returns Future `true` in case of success
   ///
   /// Throws [GSheetsException].
-  Future<bool> post(dynamic value) async {
-    final val = parseStringOrEmpty(value);
+  Future<bool> post(Object? value) async {
+    final val = parseString(value);
     if (this.value == val) return false;
     final posted = await _ws._update(
       values: [val],
@@ -3548,12 +3556,12 @@ class WorksheetAsCells {
   ///
   /// Throws [GSheetsException].
   Future<List<Cell>> findByValue(
-    dynamic value, {
+    Object value, {
     int fromRow = 1,
     int fromColumn = 1,
     int length = -1,
   }) async {
-    final valueString = parseStringOrEmpty(value);
+    final valueString = parseString(value);
     final cells = <Cell>[];
     var rows = await _ws.values.allRows(
       fromRow: fromRow,
