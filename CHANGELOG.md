@@ -1,3 +1,9 @@
+## 0.3.0
+
+- **Breaking change** Migration to nullsafety progress
+- **Breaking change** - ValueRenderOption use snake case
+- Added `fill` parameter to `allRows` and `allColumns` to return lists with even lengths (if the value for the cell is absent, empty string is appended) 
+
 ## 0.2.7
 
 - Added constructor with custom client for `GSheets`
