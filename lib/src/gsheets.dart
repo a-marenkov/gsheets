@@ -1537,6 +1537,9 @@ class WorksheetAsValues {
   /// [count] - optional (defaults to -1), the number of requested columns
   /// if count is `-1`, all columns starting from [fromColumn] will be returned
   ///
+  /// [fill] - optional (defaults to `false`), whether to fill with empty
+  /// strings to columns if their length is shorter
+  ///
   /// Returns all columns as Future [List] of [List].
   ///
   /// Throws [GSheetsException].
@@ -1575,6 +1578,9 @@ class WorksheetAsValues {
   ///
   /// [count] - optional (defaults to -1), the number of requested rows
   /// if count is `-1`, all rows starting from [fromRow] will be returned
+  ///
+  /// [fill] - optional (defaults to `false`), whether to fill with empty
+  /// strings to rows if their length is shorter
   ///
   /// Returns all rows as Future [List] of [List].
   ///
