@@ -2,9 +2,10 @@ name: example
 description: A sample application as an example for gsheets.
 version: 1.0.0
 homepage: https://github.com/a-marenkov/gsheets/tree/master/example
+publish_to: none
 
 environment:
-  sdk: '>=2.5.0 <3.0.0'
+  sdk: '>=2.12.0 <3.0.0'
 
 dependencies:
   gsheets:
