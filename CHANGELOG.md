@@ -1,15 +1,8 @@
-## 0.3.0-nullsafety.1
+## 0.3.0
 
-- Migration to nullsafety progress
-
-## 0.3.0-nullsafety.0
-
-- **Breaking change** - auto migrated code to null safety
+- **Breaking change** Migration to nullsafety progress
 - **Breaking change** - ValueRenderOption use snake case
-
-## 0.3.0-dev.1
-
-- **Breaking change** - `allRows` and `allColumns` always return lists with even lengths (if the value for the cell is absent, empty string is appended) 
+- Added `fill` parameter to `allRows` and `allColumns` to return lists with even lengths (if the value for the cell is absent, empty string is appended) 
 
 ## 0.2.7
 
