@@ -1,3 +1,8 @@
+## 0.3.1
+
+- Documentation fixes.
+- Bump googleapis version to 3.0.0
+
 ## 0.3.0
 
 - **Breaking change** Migration to nullsafety progress

@@ -1,6 +1,8 @@
 import 'package:gsheets/gsheets.dart';
 
-// your google auth credentials
+/// Your google auth credentials
+///
+/// how to get credentials - https://medium.com/@a.marenkov/how-to-get-credentials-for-google-sheets-456b7e88c430
 const _credentials = r'''
 {
   "type": "service_account",
@@ -15,7 +17,12 @@ const _credentials = r'''
   "client_x509_cert_url": ""
 }
 ''';
-// your spreadsheet id
+
+/// Your spreadsheet id
+///
+/// It can be found in the link to your spreadsheet -
+/// link looks like so https://docs.google.com/spreadsheets/d/YOUR_SPREADSHEET_ID/edit#gid=0
+/// [YOUR_SPREADSHEET_ID] in the path is the id your need
 const _spreadsheetId = '';
 
 void main() async {
