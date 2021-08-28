@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:collection/collection.dart' show IterableExtension;
 import 'package:googleapis/sheets/v4.dart';
@@ -250,18 +251,17 @@ class GSheets {
     }
   }
 
-  /// Exports spreadsheet with [spreadsheetId] in specified [format] and writes
-  /// it to [file]
+  /// Exports spreadsheet with [spreadsheetId] in specified [format] and returns
+  /// bytes that can be written to the file
   ///
   /// [worksheetId] - the worksheet id that will be exported, if not specified
   /// the whole spreadsheet will be exported
   ///
-  /// Returns Future<File> once writing is complete
-  static Future<File> _export({
+  /// Returns Future<Uint8List>
+  static Future<Uint8List> export({
     required AutoRefreshingAuthClient client,
     required String spreadsheetId,
     required String spreadsheetUrl,
-    required File file,
     required ExportFormat format,
     required int? worksheetId,
   }) async {
@@ -274,7 +274,7 @@ class GSheets {
     final url = spreadsheetUrl.replaceAll('edit', 'export');
     final uri = Uri.parse('$url?$query');
     final response = await client.get(uri);
-    return file.writeAsBytes(response.bodyBytes);
+    return response.bodyBytes;
   }
 
   /// Applies one or more updates to the spreadsheet.
@@ -443,15 +443,16 @@ class Spreadsheet {
     File file,
     ExportFormat format, {
     int? worksheetId,
-  }) =>
-      GSheets._export(
-        client: _client,
-        spreadsheetId: id,
-        spreadsheetUrl: url,
-        file: file,
-        format: format,
-        worksheetId: worksheetId,
-      );
+  }) async {
+    final bytes = await GSheets.export(
+      client: _client,
+      spreadsheetId: id,
+      spreadsheetUrl: url,
+      format: format,
+      worksheetId: worksheetId,
+    );
+    return file.writeAsBytes(bytes);
+  }
 
   /// Adds new [Worksheet] with specified [title], [rows] and [columns].
   ///
