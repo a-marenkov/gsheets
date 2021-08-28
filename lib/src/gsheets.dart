@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 
 import 'package:collection/collection.dart' show IterableExtension;
@@ -148,8 +149,10 @@ class GSheets {
     checkResponse(response);
     final renderOption = _parseRenderOption(render);
     final inputOption = _parseInputOption(input);
-    final spreadsheetId = jsonDecode(response.body)['spreadsheetId'];
-    final sheets = (jsonDecode(response.body)['sheets'] as List)
+    final json = jsonDecode(response.body);
+    final spreadsheetId = json['spreadsheetId'];
+    final spreadsheetUrl = json['spreadsheetUrl'];
+    final sheets = (json['sheets'] as List)
         .map((json) => Worksheet._fromJson(
               json,
               client,
@@ -161,6 +164,7 @@ class GSheets {
     return Spreadsheet._(
       client,
       spreadsheetId,
+      spreadsheetUrl,
       sheets,
       renderOption,
       inputOption,
@@ -193,7 +197,9 @@ class GSheets {
     checkResponse(response);
     final renderOption = _parseRenderOption(render);
     final inputOption = _parseInputOption(input);
-    final sheets = (jsonDecode(response.body)['sheets'] as List)
+    final json = jsonDecode(response.body);
+    final spreadsheetUrl = json['spreadsheetUrl'];
+    final sheets = (json['sheets'] as List)
         .where(gridSheetsFilter)
         .map((json) => Worksheet._fromJson(
               json,
@@ -206,6 +212,7 @@ class GSheets {
     return Spreadsheet._(
       client,
       spreadsheetId,
+      spreadsheetUrl,
       sheets,
       renderOption,
       inputOption,
@@ -230,6 +237,44 @@ class GSheets {
       default:
         return 'RAW';
     }
+  }
+
+  static String _parseExportFormat(ExportFormat format) {
+    switch (format) {
+      case ExportFormat.xlsx:
+        return 'xlsx';
+      case ExportFormat.pdf:
+        return 'pdf';
+      case ExportFormat.csv:
+        return 'csv';
+    }
+  }
+
+  /// Exports spreadsheet with [spreadsheetId] in specified [format] and writes
+  /// it to [file]
+  ///
+  /// [worksheetId] - the worksheet id that will be exported, if not specified
+  /// the whole spreadsheet will be exported
+  ///
+  /// Returns Future<File> once writing is complete
+  static Future<File> _export({
+    required AutoRefreshingAuthClient client,
+    required String spreadsheetId,
+    required String spreadsheetUrl,
+    required File file,
+    required ExportFormat format,
+    required int? worksheetId,
+  }) async {
+    final params = <String, String>{
+      'id': spreadsheetId,
+      'format': _parseExportFormat(format),
+      if (worksheetId != null) 'gid': worksheetId.toString(),
+    };
+    final query = Uri(queryParameters: params).query;
+    final url = spreadsheetUrl.replaceAll('edit', 'export');
+    final uri = Uri.parse('$url?$query');
+    final response = await client.get(uri);
+    return file.writeAsBytes(response.bodyBytes);
   }
 
   /// Applies one or more updates to the spreadsheet.
@@ -265,6 +310,7 @@ class GSheets {
 
 enum ValueRenderOption { formattedValue, unformattedValue, formula }
 enum ValueInputOption { userEntered, raw }
+enum ExportFormat { xlsx, csv, pdf }
 
 /// Representation of a [Spreadsheet], manages [Worksheet]s.
 class Spreadsheet {
@@ -272,6 +318,9 @@ class Spreadsheet {
 
   /// [Spreadsheet]'s id
   final String id;
+
+  /// [Spreadsheet]'s url
+  final String url;
 
   /// List of [Worksheet]s
   final List<Worksheet> sheets;
@@ -287,6 +336,7 @@ class Spreadsheet {
   Spreadsheet._(
     this._client,
     this.id,
+    this.url,
     this.sheets,
     this.renderOption,
     this.inputOption,
@@ -382,6 +432,26 @@ class Spreadsheet {
       (sheet) => sheet.index == index,
     );
   }
+
+  /// Exports spreadsheet in specified [format] and writes it to [file]
+  ///
+  /// [worksheetId] - the worksheet id that will be exported, if not specified
+  /// the whole spreadsheet will be exported
+  ///
+  /// Returns Future<File> once writing is complete
+  Future<File> export(
+    File file,
+    ExportFormat format, {
+    int? worksheetId,
+  }) =>
+      GSheets._export(
+        client: _client,
+        spreadsheetId: id,
+        spreadsheetUrl: url,
+        file: file,
+        format: format,
+        worksheetId: worksheetId,
+      );
 
   /// Adds new [Worksheet] with specified [title], [rows] and [columns].
   ///
