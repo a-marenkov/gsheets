@@ -1,3 +1,9 @@
+## 0.3.2
+
+- Bump googleapis version to 4.0.0
+- Added A1Ref utility class
+- Added method `export` to `Spreadsheet` (with export formats xlsx, csv and pdf)
+
 ## 0.3.1
 
 - Documentation fixes.
