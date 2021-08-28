@@ -68,7 +68,7 @@ class GSheets {
   /// will be used for requests to google sheets api
   ///
   /// see https://pub.dev/packages/googleapis_auth for all options
-  /// of creating [AutoRefreshingAuthClientЛ]
+  /// of creating [AutoRefreshingAuthClient]
   GSheets.withClient(FutureOr<AutoRefreshingAuthClient> client)
       : _externalClient = Future.value(client),
         _credentials = null,
