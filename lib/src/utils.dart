@@ -131,4 +131,3 @@ extension StringX on String {
 extension StringNX on String? {
   bool get isNullOrEmpty => this?.isEmpty ?? true;
 }
-
