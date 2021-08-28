@@ -13,6 +13,16 @@ void main() async {
 
   final ws = await ssheet.addWorksheet('tests');
 
+  test('A1Ref conversion', () {
+    for (var i = 1; i < gsheetsCellsLimit; i++) {
+      final label = A1Ref.getColumnLabel(i);
+      expect(
+          A1Ref.getColumnIndex(label),
+          i
+      );
+    }
+  });
+
   test('some inserts and reads', () async {
     await ws.values.insertRow(1, [1, 2, 3]);
 
@@ -82,7 +92,7 @@ void main() async {
       ['0', '0', '0', '0'],
     );
 
-    await ws.values.appendRow([2,3], fromColumn: 2);
+    await ws.values.appendRow([2, 3], fromColumn: 2);
 
     /// last row
     expect(
@@ -164,7 +174,8 @@ void main() async {
     ]);
 
     expect(
-      await ws.values.allColumns(fromRow: 2, fromColumn: 2, length: 2, count: 2),
+      await ws.values
+          .allColumns(fromRow: 2, fromColumn: 2, length: 2, count: 2),
       [
         ['1', '0'],
         ['2', '0'],
@@ -256,52 +267,52 @@ void main() async {
     expect(
       await ws.values.map.column(2),
       {
-        '1':'a',
-        '2':'b',
-        '3':'c',
-        '4':'d',
+        '1': 'a',
+        '2': 'b',
+        '3': 'c',
+        '4': 'd',
       },
     );
 
     expect(
       await ws.values.map.column(1, mapTo: 2, fromRow: 2, length: 2),
       {
-        'b':'2',
-        'c':'3',
+        'b': '2',
+        'c': '3',
       },
     );
 
     expect(
       await ws.values.map.columnByKey(1, mapTo: 'a', fromRow: 2, length: 2),
       {
-        'b':'2',
-        'c':'3',
+        'b': '2',
+        'c': '3',
       },
     );
 
     expect(
       await ws.values.map.row(2),
       {
-        '1':'2',
-        'a':'b',
-        'a1':'b2',
-        '1a':'2b',
+        '1': '2',
+        'a': 'b',
+        'a1': 'b2',
+        '1a': '2b',
       },
     );
 
     expect(
       await ws.values.map.row(1, mapTo: 2, fromColumn: 2, length: 2),
       {
-        'b':'a',
-        'b2':'a1',
+        'b': 'a',
+        'b2': 'a1',
       },
     );
 
     expect(
       await ws.values.map.rowByKey(1, mapTo: 2, fromColumn: 2, length: 2),
       {
-        'b':'a',
-        'b2':'a1',
+        'b': 'a',
+        'b2': 'a1',
       },
     );
   });

@@ -2,3 +2,5 @@
 library gsheets;
 
 export 'src/gsheets.dart';
+export 'src/a1_ref.dart';
+export 'src/utils.dart';

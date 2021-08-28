@@ -8,6 +8,7 @@ import 'package:googleapis_auth/auth_io.dart';
 import 'package:googleapis_auth/googleapis_auth.dart';
 import 'package:http/http.dart' as http;
 
+import 'a1_ref.dart';
 import 'utils.dart';
 
 const _sheetsEndpoint = 'https://sheets.googleapis.com/v4/spreadsheets/';
@@ -1221,7 +1222,7 @@ class Worksheet {
 
   Future<String> _columnRange(int column, int row, int length) async {
     final expand = _expand(row + length - 1, column);
-    final label = getColumnLetter(column);
+    final label = A1Ref.getColumnLabel(column);
     final to = length > 0 ? '${row + length - 1}' : '';
     await expand;
     return "'$_title'!$label$row:$label$to";
@@ -1229,8 +1230,8 @@ class Worksheet {
 
   Future<String> _rowRange(int row, int column, int length) async {
     final expand = _expand(row, column + length - 1);
-    final label = getColumnLetter(column);
-    final labelTo = length > 0 ? getColumnLetter(column + length - 1) : '';
+    final label = A1Ref.getColumnLabel(column);
+    final labelTo = length > 0 ? A1Ref.getColumnLabel(column + length - 1) : '';
     await expand;
     return "'$_title'!$label$row:$labelTo$row";
   }
@@ -1245,10 +1246,10 @@ class Worksheet {
       max(row, row + length - 1),
       max(column, column + count - 1),
     );
-    final fromLabel = getColumnLetter(column);
+    final fromLabel = A1Ref.getColumnLabel(column);
     final to = length > 0 ? row + length - 1 : gsheetsCellsLimit;
     await expand;
-    final toLabel = count > 0 ? getColumnLetter(column + count - 1) : '';
+    final toLabel = count > 0 ? A1Ref.getColumnLabel(column + count - 1) : '';
     return "'$_title'!$fromLabel$row:$toLabel$to";
   }
 
@@ -1262,8 +1263,8 @@ class Worksheet {
       max(row, row + count - 1),
       max(column, column + length - 1),
     );
-    final label = getColumnLetter(column);
-    final toLabel = length > 0 ? getColumnLetter(column + length - 1) : '';
+    final label = A1Ref.getColumnLabel(column);
+    final toLabel = length > 0 ? A1Ref.getColumnLabel(column + length - 1) : '';
     await expand;
     final toRow = count > 0 ? row + count - 1 : gsheetsCellsLimit;
     return "'$_title'!$label$row:$toLabel$toRow";
@@ -3195,7 +3196,7 @@ class Cell implements Comparable {
   ]);
 
   /// Returns position of a cell in A1 notation.
-  late String label = '${getColumnLetter(column)}$row';
+  late String label = '${A1Ref.getColumnLabel(column)}$row';
 
   String get worksheetTitle => _ws._title;
 
