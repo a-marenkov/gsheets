@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:collection/collection.dart' show IterableExtension;
 import 'package:googleapis/sheets/v4.dart';
@@ -8,6 +10,7 @@ import 'package:googleapis_auth/auth_io.dart';
 import 'package:googleapis_auth/googleapis_auth.dart';
 import 'package:http/http.dart' as http;
 
+import 'a1_ref.dart';
 import 'utils.dart';
 
 const _sheetsEndpoint = 'https://sheets.googleapis.com/v4/spreadsheets/';
@@ -65,7 +68,7 @@ class GSheets {
   /// will be used for requests to google sheets api
   ///
   /// see https://pub.dev/packages/googleapis_auth for all options
-  /// of creating [AutoRefreshingAuthClientЛ]
+  /// of creating [AutoRefreshingAuthClient]
   GSheets.withClient(FutureOr<AutoRefreshingAuthClient> client)
       : _externalClient = Future.value(client),
         _credentials = null,
@@ -147,8 +150,10 @@ class GSheets {
     checkResponse(response);
     final renderOption = _parseRenderOption(render);
     final inputOption = _parseInputOption(input);
-    final spreadsheetId = jsonDecode(response.body)['spreadsheetId'];
-    final sheets = (jsonDecode(response.body)['sheets'] as List)
+    final json = jsonDecode(response.body);
+    final spreadsheetId = json['spreadsheetId'];
+    final spreadsheetUrl = json['spreadsheetUrl'];
+    final sheets = (json['sheets'] as List)
         .map((json) => Worksheet._fromJson(
               json,
               client,
@@ -160,6 +165,7 @@ class GSheets {
     return Spreadsheet._(
       client,
       spreadsheetId,
+      spreadsheetUrl,
       sheets,
       renderOption,
       inputOption,
@@ -192,7 +198,9 @@ class GSheets {
     checkResponse(response);
     final renderOption = _parseRenderOption(render);
     final inputOption = _parseInputOption(input);
-    final sheets = (jsonDecode(response.body)['sheets'] as List)
+    final json = jsonDecode(response.body);
+    final spreadsheetUrl = json['spreadsheetUrl'];
+    final sheets = (json['sheets'] as List)
         .where(gridSheetsFilter)
         .map((json) => Worksheet._fromJson(
               json,
@@ -205,6 +213,7 @@ class GSheets {
     return Spreadsheet._(
       client,
       spreadsheetId,
+      spreadsheetUrl,
       sheets,
       renderOption,
       inputOption,
@@ -229,6 +238,43 @@ class GSheets {
       default:
         return 'RAW';
     }
+  }
+
+  static String _parseExportFormat(ExportFormat format) {
+    switch (format) {
+      case ExportFormat.xlsx:
+        return 'xlsx';
+      case ExportFormat.pdf:
+        return 'pdf';
+      case ExportFormat.csv:
+        return 'csv';
+    }
+  }
+
+  /// Exports spreadsheet with [spreadsheetId] in specified [format] and returns
+  /// bytes that can be written to the file
+  ///
+  /// [worksheetId] - the worksheet id that will be exported, if not specified
+  /// the whole spreadsheet will be exported
+  ///
+  /// Returns Future<Uint8List>
+  static Future<Uint8List> export({
+    required AutoRefreshingAuthClient client,
+    required String spreadsheetId,
+    required String spreadsheetUrl,
+    required ExportFormat format,
+    required int? worksheetId,
+  }) async {
+    final params = <String, String>{
+      'id': spreadsheetId,
+      'format': _parseExportFormat(format),
+      if (worksheetId != null) 'gid': worksheetId.toString(),
+    };
+    final query = Uri(queryParameters: params).query;
+    final url = spreadsheetUrl.replaceAll('edit', 'export');
+    final uri = Uri.parse('$url?$query');
+    final response = await client.get(uri);
+    return response.bodyBytes;
   }
 
   /// Applies one or more updates to the spreadsheet.
@@ -264,6 +310,7 @@ class GSheets {
 
 enum ValueRenderOption { formattedValue, unformattedValue, formula }
 enum ValueInputOption { userEntered, raw }
+enum ExportFormat { xlsx, csv, pdf }
 
 /// Representation of a [Spreadsheet], manages [Worksheet]s.
 class Spreadsheet {
@@ -271,6 +318,9 @@ class Spreadsheet {
 
   /// [Spreadsheet]'s id
   final String id;
+
+  /// [Spreadsheet]'s url
+  final String url;
 
   /// List of [Worksheet]s
   final List<Worksheet> sheets;
@@ -286,6 +336,7 @@ class Spreadsheet {
   Spreadsheet._(
     this._client,
     this.id,
+    this.url,
     this.sheets,
     this.renderOption,
     this.inputOption,
@@ -380,6 +431,27 @@ class Spreadsheet {
     return sheets.firstWhereOrNull(
       (sheet) => sheet.index == index,
     );
+  }
+
+  /// Exports spreadsheet in specified [format] and writes it to [file]
+  ///
+  /// [worksheetId] - the worksheet id that will be exported, if not specified
+  /// the whole spreadsheet will be exported
+  ///
+  /// Returns Future<File> once writing is complete
+  Future<File> export(
+    File file,
+    ExportFormat format, {
+    int? worksheetId,
+  }) async {
+    final bytes = await GSheets.export(
+      client: _client,
+      spreadsheetId: id,
+      spreadsheetUrl: url,
+      format: format,
+      worksheetId: worksheetId,
+    );
+    return file.writeAsBytes(bytes);
   }
 
   /// Adds new [Worksheet] with specified [title], [rows] and [columns].
@@ -1221,7 +1293,7 @@ class Worksheet {
 
   Future<String> _columnRange(int column, int row, int length) async {
     final expand = _expand(row + length - 1, column);
-    final label = getColumnLetter(column);
+    final label = A1Ref.getColumnLabel(column);
     final to = length > 0 ? '${row + length - 1}' : '';
     await expand;
     return "'$_title'!$label$row:$label$to";
@@ -1229,8 +1301,8 @@ class Worksheet {
 
   Future<String> _rowRange(int row, int column, int length) async {
     final expand = _expand(row, column + length - 1);
-    final label = getColumnLetter(column);
-    final labelTo = length > 0 ? getColumnLetter(column + length - 1) : '';
+    final label = A1Ref.getColumnLabel(column);
+    final labelTo = length > 0 ? A1Ref.getColumnLabel(column + length - 1) : '';
     await expand;
     return "'$_title'!$label$row:$labelTo$row";
   }
@@ -1245,10 +1317,10 @@ class Worksheet {
       max(row, row + length - 1),
       max(column, column + count - 1),
     );
-    final fromLabel = getColumnLetter(column);
+    final fromLabel = A1Ref.getColumnLabel(column);
     final to = length > 0 ? row + length - 1 : gsheetsCellsLimit;
     await expand;
-    final toLabel = count > 0 ? getColumnLetter(column + count - 1) : '';
+    final toLabel = count > 0 ? A1Ref.getColumnLabel(column + count - 1) : '';
     return "'$_title'!$fromLabel$row:$toLabel$to";
   }
 
@@ -1262,8 +1334,8 @@ class Worksheet {
       max(row, row + count - 1),
       max(column, column + length - 1),
     );
-    final label = getColumnLetter(column);
-    final toLabel = length > 0 ? getColumnLetter(column + length - 1) : '';
+    final label = A1Ref.getColumnLabel(column);
+    final toLabel = length > 0 ? A1Ref.getColumnLabel(column + length - 1) : '';
     await expand;
     final toRow = count > 0 ? row + count - 1 : gsheetsCellsLimit;
     return "'$_title'!$label$row:$toLabel$toRow";
@@ -3195,7 +3267,7 @@ class Cell implements Comparable {
   ]);
 
   /// Returns position of a cell in A1 notation.
-  late String label = '${getColumnLetter(column)}$row';
+  late String label = '${A1Ref.getColumnLabel(column)}$row';
 
   String get worksheetTitle => _ws._title;
 
