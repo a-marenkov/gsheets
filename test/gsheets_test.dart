@@ -3,6 +3,8 @@ import 'package:test/test.dart';
 
 import 'env.dart';
 
+const gsheetsCellsLimit = 5000000;
+
 void main() async {
   final gsheets = GSheets(TestsConfig.credentials);
   final ssheet = await gsheets.spreadsheet(TestsConfig.spreadsheetId);
