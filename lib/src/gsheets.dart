@@ -148,47 +148,11 @@ class GSheets {
       ),
     );
     checkResponse(response);
-    final renderOption = _parseRenderOption(render);
-    final inputOption = _parseInputOption(input);
-    final json = jsonDecode(response.body);
-    final spreadsheetId = json['spreadsheetId'];
-    final spreadsheetUrl = json['spreadsheetUrl'];
-    final properties = SpreadsheetProperties.fromJson(json['properties']);
-    final sheets = (json['sheets'] as List)
-        .map((json) => Worksheet._fromJson(
-              json,
-              client,
-              spreadsheetId,
-              renderOption,
-              inputOption,
-            ))
-        .toList();
-    final namedRanges =
-        Map.fromEntries((json['namedRanges'] as List?)?.map((json) {
-      var namedRange = NamedRange.fromJson(json);
-      return MapEntry(namedRange.name, namedRange);
-    }) ?? Iterable<MapEntry<String?, NamedRange>>.empty());
-    final developerMetadata = (json['developerMetadata'] as List?)
-        ?.map((json) => DeveloperMetadata.fromJson(json))
-        .toList() ?? List.empty();
-    final dataSources = (json['dataSources'] as List?)
-        ?.map((json) => DataSource.fromJson(json))
-        .toList() ?? List.empty();
-    final dataSourceSchedules = (json['dataSourceSchedules'] as List?)
-        ?.map((json) => DataSourceRefreshSchedule.fromJson(json))
-        .toList() ?? List.empty();
-    return Spreadsheet._(
-      client,
-      spreadsheetId,
-      spreadsheetUrl,
-      properties,
-      sheets,
-      namedRanges,
-      developerMetadata,
-      dataSources,
-      dataSourceSchedules,
-      renderOption,
-      inputOption,
+    return Spreadsheet._fromJson(
+      json: jsonDecode(response.body),
+      client: client,
+      renderOption: _parseRenderOption(render),
+      inputOption: _parseInputOption(input),
     );
   }
 
@@ -216,47 +180,11 @@ class GSheets {
     });
     final response = await client.get('$_sheetsEndpoint$spreadsheetId'.toUri());
     checkResponse(response);
-    final renderOption = _parseRenderOption(render);
-    final inputOption = _parseInputOption(input);
-    final json = jsonDecode(response.body);
-    final spreadsheetUrl = json['spreadsheetUrl'];
-    final properties = SpreadsheetProperties.fromJson(json['properties']);
-    final sheets = (json['sheets'] as List)
-        .where(gridSheetsFilter)
-        .map((json) => Worksheet._fromJson(
-              json,
-              client,
-              spreadsheetId,
-              renderOption,
-              inputOption,
-            ))
-        .toList();
-    final namedRanges =
-        Map.fromEntries((json['namedRanges'] as List?)?.map((json) {
-      var namedRange = NamedRange.fromJson(json);
-      return MapEntry(namedRange.name, namedRange);
-    }) ?? Iterable<MapEntry<String?, NamedRange>>.empty());
-    final developerMetadata = (json['developerMetadata'] as List?)
-        ?.map((json) => DeveloperMetadata.fromJson(json))
-        .toList() ?? List.empty();
-    final dataSources = (json['dataSources'] as List?)
-        ?.map((json) => DataSource.fromJson(json))
-        .toList() ?? List.empty();
-    final dataSourceSchedules = (json['dataSourceSchedules'] as List?)
-        ?.map((json) => DataSourceRefreshSchedule.fromJson(json))
-        .toList() ?? List.empty();
-    return Spreadsheet._(
-      client,
-      spreadsheetId,
-      spreadsheetUrl,
-      properties,
-      sheets,
-      namedRanges,
-      developerMetadata,
-      dataSources,
-      dataSourceSchedules,
-      renderOption,
-      inputOption,
+    return Spreadsheet._fromJson(
+      json: jsonDecode(response.body),
+      client: client,
+      renderOption: _parseRenderOption(render),
+      inputOption: _parseInputOption(input),
     );
   }
 
@@ -352,6 +280,90 @@ enum ValueRenderOption { formattedValue, unformattedValue, formula }
 enum ValueInputOption { userEntered, raw }
 enum ExportFormat { xlsx, csv, pdf }
 
+/// Class containing additional [Spreadsheet] data
+class SpreadsheetData {
+  /// [Spreadsheet]'s properties
+  final SpreadsheetProperties properties;
+
+  /// [Spreadsheet]'s [NamedRanges]
+  final NamedRanges namedRanges;
+
+  /// List of [DeveloperMetadata]s
+  final List<DeveloperMetadata> developerMetadata;
+
+  /// List of [DataSource]s
+  final List<DataSource> dataSources;
+
+  /// List of [DataSourceRefreshSchedule]s
+  final List<DataSourceRefreshSchedule> dataSourceSchedules;
+
+  SpreadsheetData._(
+    this.properties,
+    this.namedRanges,
+    this.developerMetadata,
+    this.dataSources,
+    this.dataSourceSchedules,
+  );
+
+  factory SpreadsheetData._fromJson(Map<String, dynamic> json) {
+    final properties = SpreadsheetProperties.fromJson(json['properties']);
+    final namedRanges = NamedRanges._fromJsonList(json['namedRanges']);
+    final developerMetadata = (json['developerMetadata'] as List?)
+        ?.map((json) => DeveloperMetadata.fromJson(json))
+        .toList();
+    final dataSources = (json['dataSources'] as List?)
+        ?.map((json) => DataSource.fromJson(json))
+        .toList();
+    final dataSourceSchedules = (json['dataSourceSchedules'] as List?)
+        ?.map((json) => DataSourceRefreshSchedule.fromJson(json))
+        .toList();
+    return SpreadsheetData._(
+      properties,
+      namedRanges,
+      developerMetadata ?? [],
+      dataSources ?? [],
+      dataSourceSchedules ?? [],
+    );
+  }
+}
+
+/// Helper class for getting [NamedRange]
+class NamedRanges {
+  /// Map of [NamedRange]s by it's names
+  final Map<String?, NamedRange> byName;
+
+  /// Map of [NamedRange]s by it's names
+  final Map<String?, NamedRange> byId;
+
+  const NamedRanges({
+    required this.byName,
+    required this.byId,
+  });
+
+  const NamedRanges._empty()
+      : byName = const {},
+        byId = const {};
+
+  factory NamedRanges._fromJsonList(final List<Map<String, dynamic>>? jsons) {
+    if (jsons == null) {
+      return const NamedRanges._empty();
+    }
+
+    final byName = <String?, NamedRange>{};
+    final byId = <String?, NamedRange>{};
+    for (final json in jsons) {
+      final namedRange = NamedRange.fromJson(json);
+      byName[namedRange.name] = namedRange;
+      byId[namedRange.namedRangeId] = namedRange;
+    }
+
+    return NamedRanges(
+      byName: Map<String?, NamedRange>.unmodifiable(byName),
+      byId: Map<String?, NamedRange>.unmodifiable(byId),
+    );
+  }
+}
+
 /// Representation of a [Spreadsheet], manages [Worksheet]s.
 class Spreadsheet {
   final AutoRefreshingAuthClient _client;
@@ -362,23 +374,13 @@ class Spreadsheet {
   /// [Spreadsheet]'s url
   final String url;
 
-  /// [Spreadsheet]'s properties
-  final SpreadsheetProperties properties;
+  SpreadsheetData _data;
+
+  /// [Spreadsheet]'s additional data, see [SpreadsheetData]
+  SpreadsheetData get data => _data;
 
   /// List of [Worksheet]s
   final List<Worksheet> sheets;
-
-  /// List of [NamedRange]s
-  final Map<String?, NamedRange> namedRanges;
-
-  /// List of [DeveloperMetadata]s
-  final List<DeveloperMetadata> developerMetadata;
-
-  /// List of [DataSource]s
-  final List<DataSource> dataSources;
-
-  /// List of [DataSourceRefreshSchedule]s
-  final List<DataSourceRefreshSchedule> dataSourceSchedules;
 
   /// Determines how values should be rendered in the output.
   /// https://developers.google.com/sheets/api/reference/rest/v4/ValueRenderOption
@@ -392,15 +394,40 @@ class Spreadsheet {
     this._client,
     this.id,
     this.url,
-    this.properties,
+    this._data,
     this.sheets,
-    this.namedRanges,
-    this.developerMetadata,
-    this.dataSources,
-    this.dataSourceSchedules,
     this.renderOption,
     this.inputOption,
   );
+
+  factory Spreadsheet._fromJson({
+    required Map<String, dynamic> json,
+    required AutoRefreshingAuthClient client,
+    required String renderOption,
+    required String inputOption,
+  }) {
+    final spreadsheetId = json['spreadsheetId'];
+    final spreadsheetUrl = json['spreadsheetUrl'];
+    final data = SpreadsheetData._fromJson(json);
+    final sheets = (json['sheets'] as List)
+        .map((json) => Worksheet._fromJson(
+              json,
+              client,
+              spreadsheetId,
+              renderOption,
+              inputOption,
+            ))
+        .toList();
+    return Spreadsheet._(
+      client,
+      spreadsheetId,
+      spreadsheetUrl,
+      data,
+      sheets,
+      renderOption,
+      inputOption,
+    );
+  }
 
   /// Applies one or more updates to the spreadsheet.
   /// [About batchUpdate](https://developers.google.com/sheets/api/reference/rest/v4/spreadsheets/batchUpdate)
@@ -420,15 +447,19 @@ class Spreadsheet {
   /// Refreshes [Spreadsheet].
   ///
   /// Should be called if you believe, that spreadsheet has been changed
-  /// by another user (such as added/deleted/renamed worksheets).
+  /// by another user (such as added/deleted/renamed worksheets, or data that
+  /// specified in [SpreadsheetData] changed).
   ///
   /// Returns Future `true` in case of success.
   Future<bool> refresh() async {
     final response = await _client.get(
       '$_sheetsEndpoint$id'.toUri(),
     );
+
     if (response.statusCode == 200) {
-      final newSheets = (jsonDecode(response.body)['sheets'] as List)
+      final json = jsonDecode(response.body);
+      _data = SpreadsheetData._fromJson(json);
+      final newSheets = (json['sheets'] as List)
           .where(gridSheetsFilter)
           .map((json) => Worksheet._fromJson(
                 json,

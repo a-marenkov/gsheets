@@ -30,11 +30,17 @@ void main() async {
   final gsheets = GSheets(_credentials);
   // fetch spreadsheet by its id
   final ss = await gsheets.spreadsheet(_spreadsheetId);
-  print(ss.namedRanges.values.map((e) => {
-    'name': e.name,
-    'start': '${String.fromCharCode((e.range?.startColumnIndex ?? 0) + 97)}${(e.range?.startRowIndex ?? 0) + 1}',
-    'end': '${String.fromCharCode((e.range?.endColumnIndex ?? 0) + 97)}${(e.range?.endRowIndex ?? 0) + 1}'
-  }).join('\n'));
+
+  print(ss.data.namedRanges.byName.values
+      .map((e) => {
+            'name': e.name,
+            'start':
+                '${String.fromCharCode((e.range?.startColumnIndex ?? 0) + 97)}${(e.range?.startRowIndex ?? 0) + 1}',
+            'end':
+                '${String.fromCharCode((e.range?.endColumnIndex ?? 0) + 97)}${(e.range?.endRowIndex ?? 0) + 1}'
+          })
+      .join('\n'));
+
   // get worksheet by its title
   var sheet = ss.worksheetByTitle('example');
   // create worksheet if it does not exist yet
