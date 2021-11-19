@@ -153,6 +153,7 @@ class GSheets {
     final json = jsonDecode(response.body);
     final spreadsheetId = json['spreadsheetId'];
     final spreadsheetUrl = json['spreadsheetUrl'];
+    final properties = SpreadsheetProperties.fromJson(json['properties']);
     final sheets = (json['sheets'] as List)
         .map((json) => Worksheet._fromJson(
               json,
@@ -162,11 +163,30 @@ class GSheets {
               inputOption,
             ))
         .toList();
+    final namedRanges =
+        Map.fromEntries((json['namedRanges'] as List?)?.map((json) {
+      var namedRange = NamedRange.fromJson(json);
+      return MapEntry(namedRange.name, namedRange);
+    }) ?? Iterable<MapEntry<String?, NamedRange>>.empty());
+    final developerMetadata = (json['developerMetadata'] as List?)
+        ?.map((json) => DeveloperMetadata.fromJson(json))
+        .toList() ?? List.empty();
+    final dataSources = (json['dataSources'] as List?)
+        ?.map((json) => DataSource.fromJson(json))
+        .toList() ?? List.empty();
+    final dataSourceSchedules = (json['dataSourceSchedules'] as List?)
+        ?.map((json) => DataSourceRefreshSchedule.fromJson(json))
+        .toList() ?? List.empty();
     return Spreadsheet._(
       client,
       spreadsheetId,
       spreadsheetUrl,
+      properties,
       sheets,
+      namedRanges,
+      developerMetadata,
+      dataSources,
+      dataSourceSchedules,
       renderOption,
       inputOption,
     );
@@ -200,6 +220,7 @@ class GSheets {
     final inputOption = _parseInputOption(input);
     final json = jsonDecode(response.body);
     final spreadsheetUrl = json['spreadsheetUrl'];
+    final properties = SpreadsheetProperties.fromJson(json['properties']);
     final sheets = (json['sheets'] as List)
         .where(gridSheetsFilter)
         .map((json) => Worksheet._fromJson(
@@ -210,11 +231,30 @@ class GSheets {
               inputOption,
             ))
         .toList();
+    final namedRanges =
+        Map.fromEntries((json['namedRanges'] as List?)?.map((json) {
+      var namedRange = NamedRange.fromJson(json);
+      return MapEntry(namedRange.name, namedRange);
+    }) ?? Iterable<MapEntry<String?, NamedRange>>.empty());
+    final developerMetadata = (json['developerMetadata'] as List?)
+        ?.map((json) => DeveloperMetadata.fromJson(json))
+        .toList() ?? List.empty();
+    final dataSources = (json['dataSources'] as List?)
+        ?.map((json) => DataSource.fromJson(json))
+        .toList() ?? List.empty();
+    final dataSourceSchedules = (json['dataSourceSchedules'] as List?)
+        ?.map((json) => DataSourceRefreshSchedule.fromJson(json))
+        .toList() ?? List.empty();
     return Spreadsheet._(
       client,
       spreadsheetId,
       spreadsheetUrl,
+      properties,
       sheets,
+      namedRanges,
+      developerMetadata,
+      dataSources,
+      dataSourceSchedules,
       renderOption,
       inputOption,
     );
@@ -322,8 +362,23 @@ class Spreadsheet {
   /// [Spreadsheet]'s url
   final String url;
 
+  /// [Spreadsheet]'s properties
+  final SpreadsheetProperties properties;
+
   /// List of [Worksheet]s
   final List<Worksheet> sheets;
+
+  /// List of [NamedRange]s
+  final Map<String?, NamedRange> namedRanges;
+
+  /// List of [DeveloperMetadata]s
+  final List<DeveloperMetadata> developerMetadata;
+
+  /// List of [DataSource]s
+  final List<DataSource> dataSources;
+
+  /// List of [DataSourceRefreshSchedule]s
+  final List<DataSourceRefreshSchedule> dataSourceSchedules;
 
   /// Determines how values should be rendered in the output.
   /// https://developers.google.com/sheets/api/reference/rest/v4/ValueRenderOption
@@ -337,7 +392,12 @@ class Spreadsheet {
     this._client,
     this.id,
     this.url,
+    this.properties,
     this.sheets,
+    this.namedRanges,
+    this.developerMetadata,
+    this.dataSources,
+    this.dataSourceSchedules,
     this.renderOption,
     this.inputOption,
   );
