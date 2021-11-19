@@ -6,8 +6,8 @@ import 'dart:typed_data';
 
 import 'package:collection/collection.dart' show IterableExtension;
 import 'package:googleapis/sheets/v4.dart';
-import 'package:googleapis_auth/auth_io.dart';
 import 'package:googleapis_auth/googleapis_auth.dart';
+import 'package:gsheets/src/gsheets_client.dart';
 import 'package:http/http.dart' as http;
 
 import 'a1_ref.dart';
@@ -36,6 +36,7 @@ class GSheetsException implements Exception {
 class GSheets {
   final Future<AutoRefreshingAuthClient>? _externalClient;
   final ServiceAccountCredentials? _credentials;
+  final ClientId? _clientId;
   final List<String>? _scopes;
 
   Future<AutoRefreshingAuthClient>? _client;
@@ -60,7 +61,42 @@ class GSheets {
         _credentials = ServiceAccountCredentials.fromJson(
           credentialsJson,
           impersonatedUser: impersonatedUser,
-        );
+        ),
+        _clientId = null;
+
+  /// Creates an instance of [GSheets].
+  ///
+  /// [credentials] - must be provided, credentials for a service account.
+  ///
+  /// [scopes] - optional (defaults to `[SpreadsheetsScope, DriveScope]`).
+  GSheets.withServiceAccountCredentials(
+    ServiceAccountCredentials credentials, {
+    String? impersonatedUser,
+    List<String> scopes = const [
+      SheetsApi.spreadsheetsScope,
+      SheetsApi.driveScope,
+    ],
+  })  : _externalClient = null,
+        _credentials = credentials,
+        _clientId = null,
+        _scopes = null;
+
+  /// Creates an instance of [GSheets] with [ClientId]
+  ///
+  /// [clientId] - must be provided, client application's credentials.
+  ///
+  /// This will force the implicit browser flow
+  GSheets.withClientId(
+    ClientId clientId, {
+    String? impersonatedUser,
+    List<String> scopes = const [
+      SheetsApi.spreadsheetsScope,
+      SheetsApi.driveScope,
+    ],
+  })  : _externalClient = null,
+        _credentials = null,
+        _clientId = clientId,
+        _scopes = null;
 
   /// Creates an instance of [GSheets] with custom client
   ///
@@ -72,13 +108,18 @@ class GSheets {
   GSheets.withClient(FutureOr<AutoRefreshingAuthClient> client)
       : _externalClient = Future.value(client),
         _credentials = null,
+        _clientId = null,
         _scopes = null;
 
   /// Returns Future [AutoRefreshingAuthClient] - autorefreshing,
   /// authenticated HTTP client.
   Future<AutoRefreshingAuthClient> get client {
-    _client ??=
-        _externalClient ?? clientViaServiceAccount(_credentials!, _scopes!);
+    _client = GSheetsClient.auth(
+      client: _externalClient,
+      scopes: _scopes,
+      credentials: _credentials,
+      clientId: _clientId,
+    );
     return _client!;
   }
 
