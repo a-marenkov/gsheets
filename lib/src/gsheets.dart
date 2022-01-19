@@ -10,6 +10,8 @@ import 'package:googleapis_auth/auth_io.dart';
 import 'package:googleapis_auth/googleapis_auth.dart';
 import 'package:http/http.dart' as http;
 
+import 'package:googleapis/drive/v3.dart' as gdrive;
+
 import 'a1_ref.dart';
 import 'utils.dart';
 
@@ -170,6 +172,60 @@ class GSheets {
       renderOption,
       inputOption,
     );
+  }
+
+/// Create a cloned spreadsheet file in client google drive using gdrive api.
+/// [spreadsheetId] Id of spreadsheet needed to be cloned
+/// Returns the id of cloned spreadsheet.
+  Future<String> cloneSpreadsheet(String spreadsheetId) async {
+    final client = await this.client.catchError((_) {
+      // retry once on error
+      _client = null;
+      return this.client;
+    });
+    try {
+      var drive = gdrive.DriveApi(client);
+      var file =
+          gdrive.File(); // create new file record to upload to Drive
+      try {
+        var fileName = DateTime.now().millisecondsSinceEpoch.toString();
+        file.name = fileName;
+        var response = await drive.files.copy(file, spreadsheetId);
+        var cloneSpreadsheetId = response.id ?? 'null';
+        return cloneSpreadsheetId;
+      } on Exception catch (e) {
+        // error while cloning spreadsheet
+      }
+      client.close();
+    } on Exception catch (e) {
+      // error due to credentials
+    }
+    return 'null';
+  }
+
+/// To delete a cloned spreadsheet file (which is created using cloneSpreadSheet method) from client google drive using gdrive api.
+/// [spreadsheetId] Id of spreadsheet needed to be deleted
+/// Returns whether the file is deleted successully or not
+/// Returs false if there is no file with id [spreadsheet]
+  Future<bool> deleteClonedSpreadsheet(String spreadsheetId) async {
+    final client = await this.client.catchError((_) {
+      // retry once on error
+      _client = null;
+      return this.client;
+    });
+    try {
+      var drive = gdrive.DriveApi(client);
+      try {
+        await drive.files.delete(spreadsheetId);
+        return true;
+      } on Exception catch (e) {
+        // error while cloning spreadsheet
+      }
+      client.close();
+    } on Exception catch (e) {
+      // error due to credentials
+    }
+    return false;
   }
 
   /// Fetches and returns Future [Spreadsheet].
