@@ -18,10 +18,7 @@ void main() async {
   test('A1Ref conversion', () {
     for (var i = 1; i < gsheetsCellsLimit; i++) {
       final label = A1Ref.getColumnLabel(i);
-      expect(
-          A1Ref.getColumnIndex(label),
-          i
-      );
+      expect(A1Ref.getColumnIndex(label), i);
     }
   });
 
