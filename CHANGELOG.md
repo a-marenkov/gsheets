@@ -1,6 +1,7 @@
 ## 0.4.0
 
-- todo
+- Bump googleapis version to ^8.0.0
+- Add `SpreadsheetData` to `Spreadsheet` with `SpreadsheetProperties`, `NamedRanges`, `DeveloperMetadata`, `DataSource` and `DataSourceRefreshSchedule`
 
 ## 0.3.2
 
