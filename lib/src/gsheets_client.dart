@@ -1,10 +1,10 @@
 import 'package:googleapis_auth/auth_browser.dart';
 import 'package:googleapis_auth/auth_io.dart';
-import 'package:googleapis_auth/googleapis_auth.dart';
-import 'package:gsheets/gsheets.dart';
 
-abstract class GSheetsClient {
-  const GSheetsClient._();
+import 'gsheets.dart';
+
+abstract class GSheetsAuth {
+  const GSheetsAuth._();
 
   static Future<AutoRefreshingAuthClient> auth({
     required final Future<AutoRefreshingAuthClient>? client,
