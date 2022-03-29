@@ -1,3 +1,8 @@
+## 0.4.1
+
+- Lower some dependencies bounds
+- Fix flutter AOT build
+
 ## 0.4.0
 
 - Bump googleapis version to ^8.0.0
