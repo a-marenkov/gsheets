@@ -1,3 +1,7 @@
+## 0.4.2
+
+- Fix `SpreadsheetData` parsing
+
 ## 0.4.1
 
 - Lower some dependencies bounds

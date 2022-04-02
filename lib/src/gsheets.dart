@@ -330,8 +330,12 @@ class SpreadsheetData {
   );
 
   factory SpreadsheetData._fromJson(Map<String, dynamic> json) {
-    final properties = SpreadsheetProperties.fromJson(json['properties']);
-    final namedRanges = NamedRanges._fromJsonList(json['namedRanges']);
+    final properties = SpreadsheetProperties.fromJson(
+      json['properties'],
+    );
+    final namedRanges = NamedRanges._fromJsonList(
+      (json['namedRanges'] as List?)?.cast(),
+    );
     final developerMetadata = (json['developerMetadata'] as List?)
         ?.map((json) => DeveloperMetadata.fromJson(json))
         .toList();
@@ -341,6 +345,7 @@ class SpreadsheetData {
     final dataSourceSchedules = (json['dataSourceSchedules'] as List?)
         ?.map((json) => DataSourceRefreshSchedule.fromJson(json))
         .toList();
+
     return SpreadsheetData._(
       properties,
       namedRanges,
