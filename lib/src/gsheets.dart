@@ -752,6 +752,7 @@ class Spreadsheet {
   /// [type] - the account type.
   /// [role] - the primary role for this user.
   /// [withLink] - whether the link is required for this permission.
+  /// [sendNotificationEmails] - Whether to send notification emails when sharing to users or groups.
   ///
   /// Returns Future of shared [Permission].
   ///
@@ -762,9 +763,11 @@ class Spreadsheet {
     PermType type = PermType.user,
     PermRole role = PermRole.reader,
     bool withLink = false,
+    bool sendNotificationEmails = true,
   }) async {
     final response = await _client.post(
-      '$_filesEndpoint$id/permissions'.toUri(),
+      '$_filesEndpoint$id/permissions?sendNotificationEmails=${sendNotificationEmails ? 'true' : 'false'}'
+          .toUri(),
       body: jsonEncode({
         'value': user,
         'type': Permission._parseType(type),
