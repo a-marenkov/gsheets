@@ -1,9 +1,16 @@
 import 'package:gsheets/gsheets.dart';
 import 'package:test/test.dart';
 
-import 'env.dart';
-
 const gsheetsCellsLimit = 5000000;
+
+abstract class TestsConfig {
+  // specify to run tests
+  static String credentials = r'''
+''';
+
+  // specify to run tests
+  static String spreadsheetId = '';
+}
 
 void main() async {
   final gsheets = GSheets(TestsConfig.credentials);

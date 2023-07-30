@@ -1,3 +1,7 @@
+## 0.5.0
+
+- Bump versions of dart and some dependencies
+
 ## 0.4.2
 
 - Fix `SpreadsheetData` parsing
