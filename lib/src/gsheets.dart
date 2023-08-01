@@ -132,6 +132,9 @@ class GSheets {
   /// [render] - determines how values should be rendered in the output.
   /// https://developers.google.com/sheets/api/reference/rest/v4/ValueRenderOption
   ///
+  /// [dateTimeRender] - determines how datetime values should be rendered in the output.
+  /// https://developers.google.com/sheets/api/reference/rest/v4/DateTimeRenderOption
+  ///
   /// [input] - determines how input data should be interpreted.
   /// https://developers.google.com/sheets/api/reference/rest/v4/ValueInputOption
   ///
@@ -141,6 +144,7 @@ class GSheets {
     String title, {
     List<String> worksheetTitles = const <String>['Sheet1'],
     ValueRenderOption render = ValueRenderOption.unformattedValue,
+    DateTimeRenderOption dateTimeRender = DateTimeRenderOption.serialNumber,
     ValueInputOption input = ValueInputOption.userEntered,
   }) async {
     final client = await this.client.catchError((_) {
@@ -176,6 +180,7 @@ class GSheets {
       json: jsonDecode(response.body),
       client: client,
       renderOption: _parseRenderOption(render),
+      dateTimeRenderOption: _parseDateTimeRenderOption(dateTimeRender),
       inputOption: _parseInputOption(input),
     );
   }
@@ -187,6 +192,9 @@ class GSheets {
   /// [render] - determines how values should be rendered in the output.
   /// https://developers.google.com/sheets/api/reference/rest/v4/ValueRenderOption
   ///
+  /// [dateTimeRender] - determines how datetime values should be rendered in the output.
+  /// https://developers.google.com/sheets/api/reference/rest/v4/DateTimeRenderOption
+  ///
   /// [input] - determines how input data should be interpreted.
   /// https://developers.google.com/sheets/api/reference/rest/v4/ValueInputOption
   ///
@@ -195,6 +203,7 @@ class GSheets {
   Future<Spreadsheet> spreadsheet(
     String spreadsheetId, {
     ValueRenderOption render = ValueRenderOption.unformattedValue,
+    DateTimeRenderOption dateTimeRender = DateTimeRenderOption.serialNumber,
     ValueInputOption input = ValueInputOption.userEntered,
   }) async {
     final client = await this.client.catchError((_) {
@@ -208,6 +217,7 @@ class GSheets {
       json: jsonDecode(response.body),
       client: client,
       renderOption: _parseRenderOption(render),
+      dateTimeRenderOption: _parseDateTimeRenderOption(dateTimeRender),
       inputOption: _parseInputOption(input),
     );
   }
@@ -220,6 +230,17 @@ class GSheets {
         return 'FORMULA';
       default:
         return 'UNFORMATTED_VALUE';
+    }
+  }
+
+  static String _parseDateTimeRenderOption(DateTimeRenderOption option) {
+    switch (option) {
+      case DateTimeRenderOption.serialNumber:
+        return 'SERIAL_NUMBER';
+      case DateTimeRenderOption.formattedString:
+        return 'FORMATTED_STRING';
+      default:
+        return 'SERIAL_NUMBER';
     }
   }
 
@@ -301,6 +322,7 @@ class GSheets {
 }
 
 enum ValueRenderOption { formattedValue, unformattedValue, formula }
+enum DateTimeRenderOption { serialNumber, formattedString }
 enum ValueInputOption { userEntered, raw }
 enum ExportFormat { xlsx, csv, pdf }
 
@@ -415,6 +437,10 @@ class Spreadsheet {
   /// https://developers.google.com/sheets/api/reference/rest/v4/ValueRenderOption
   final String renderOption;
 
+  /// Determines how values should be rendered in the output.
+  /// https://developers.google.com/sheets/api/reference/rest/v4/DateTimeRenderOption
+  final String dateTimeRenderOption;
+
   /// Determines how input data should be interpreted.
   /// https://developers.google.com/sheets/api/reference/rest/v4/ValueInputOption
   final String inputOption;
@@ -426,6 +452,7 @@ class Spreadsheet {
     this._data,
     this.sheets,
     this.renderOption,
+    this.dateTimeRenderOption,
     this.inputOption,
   );
 
@@ -433,6 +460,7 @@ class Spreadsheet {
     required Map<String, dynamic> json,
     required AutoRefreshingAuthClient client,
     required String renderOption,
+    required String dateTimeRenderOption,
     required String inputOption,
   }) {
     final spreadsheetId = json['spreadsheetId'];
@@ -444,6 +472,7 @@ class Spreadsheet {
               client,
               spreadsheetId,
               renderOption,
+              dateTimeRenderOption,
               inputOption,
             ))
         .toList();
@@ -454,6 +483,7 @@ class Spreadsheet {
       data,
       sheets,
       renderOption,
+      dateTimeRenderOption,
       inputOption,
     );
   }
@@ -495,6 +525,7 @@ class Spreadsheet {
                 _client,
                 id,
                 renderOption,
+                dateTimeRenderOption,
                 inputOption,
               ))
           .toList();
@@ -611,6 +642,7 @@ class Spreadsheet {
       _client,
       id,
       renderOption,
+      dateTimeRenderOption,
       inputOption,
     );
     sheets.forEach((sheet) => sheet._incrementIndex(ws.index - 1));
@@ -647,6 +679,7 @@ class Spreadsheet {
       _client,
       id,
       renderOption,
+      dateTimeRenderOption,
       inputOption,
     );
     sheets.forEach((sheet) => sheet._incrementIndex(ws.index - 1));
@@ -684,6 +717,7 @@ class Spreadsheet {
       _client,
       id,
       renderOption,
+      dateTimeRenderOption,
       inputOption,
     );
     sheets.forEach((sheet) => sheet._incrementIndex(duplicate.index - 1));
@@ -907,6 +941,7 @@ class Worksheet {
   final String spreadsheetId;
   final int id;
   final String renderOption;
+  final String dateTimeRenderOption;
   final String inputOption;
   String _title;
   int _index;
@@ -940,6 +975,7 @@ class Worksheet {
     this._rowCount,
     this._columnCount,
     this.renderOption,
+    this.dateTimeRenderOption,
     this.inputOption,
   );
 
@@ -948,6 +984,7 @@ class Worksheet {
     AutoRefreshingAuthClient client,
     String sheetsId,
     String renderOption,
+    String dateTimeRenderOption,
     String inputOption,
   ) {
     return Worksheet._(
@@ -959,6 +996,7 @@ class Worksheet {
       sheetJson['properties']['gridProperties']['rowCount'],
       sheetJson['properties']['gridProperties']['columnCount'],
       renderOption,
+      dateTimeRenderOption,
       inputOption,
     );
   }
@@ -1334,7 +1372,7 @@ class Worksheet {
   Future<List<String>> _get(String range, String dimension) async {
     final encodedRange = Uri.encodeComponent(range);
     final response = await _client.get(
-      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption'
+      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption&dateTimeRenderOption=$dateTimeRenderOption'
           .toUri(),
     );
     checkResponse(response);
@@ -1350,7 +1388,7 @@ class Worksheet {
     final encodedRange = Uri.encodeComponent(range);
 
     final response = await _client.get(
-      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption'
+      '$_sheetsEndpoint$spreadsheetId/values/$encodedRange?majorDimension=$dimension&valueRenderOption=$renderOption&dateTimeRenderOption=$dateTimeRenderOption'
           .toUri(),
     );
     checkResponse(response);
